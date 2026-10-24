@@ -14,7 +14,7 @@ import {
 import { Problem, ProblemDifficulty } from '../types/problem';
 
 interface NewProblemPageProps {
-  onCreateDraft: (problem: Problem) => void;
+  onCreateDraft: (problem: Problem) => void | Promise<void>;
   onNavigateProblems: () => void;
 }
 
@@ -42,11 +42,12 @@ export const NewProblemPage: React.FC<NewProblemPageProps> = ({
   const [bruteForceThreshold, setBruteForceThreshold] = useState(15);
   const [stressTestCount, setStressTestCount] = useState(50);
 
-  // Validation & Phase Notice state
+  // Validation, submission & Phase Notice state
   const [formError, setFormError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [submittedDraft, setSubmittedDraft] = useState<Problem | null>(null);
 
-  const handleGenerateClick = (e: React.FormEvent) => {
+  const handleGenerateClick = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
@@ -97,8 +98,16 @@ export const NewProblemPage: React.FC<NewProblemPageProps> = ({
       }
     };
 
-    setSubmittedDraft(newProblem);
-    onCreateDraft(newProblem);
+    setSubmitting(true);
+    try {
+      await onCreateDraft(newProblem);
+      setSubmittedDraft(newProblem);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to save problem';
+      setFormError(`Save failed: ${msg}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -441,10 +450,11 @@ export const NewProblemPage: React.FC<NewProblemPageProps> = ({
           <button
             type="submit"
             className="btn btn-primary"
-            style={{ padding: '9px 20px', fontSize: '14px', fontWeight: 600 }}
+            disabled={submitting}
+            style={{ padding: '9px 20px', fontSize: '14px', fontWeight: 600, opacity: submitting ? 0.7 : 1 }}
           >
             <Sparkles size={16} />
-            <span>Generate Problem</span>
+            <span>{submitting ? 'Saving…' : 'Generate Problem'}</span>
           </button>
         </div>
       </form>

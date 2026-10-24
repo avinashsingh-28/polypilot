@@ -10,12 +10,13 @@ import { AIProvidersPage } from './pages/AIProvidersPage';
 import { PolygonSettingsPage } from './pages/PolygonSettingsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { Problem } from './types/problem';
-import { DEMO_PROBLEM } from './data/mockData';
+import { useProblems } from './hooks/useProblems';
 
 export const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<NavView>('dashboard');
-  const [problems, setProblems] = useState<Problem[]>([DEMO_PROBLEM]);
-  const [activeProblemId, setActiveProblemId] = useState<string | null>(DEMO_PROBLEM.id);
+  const [activeProblemId, setActiveProblemId] = useState<string | null>(null);
+
+  const { problems, loading, error, createProblem, refreshProblems } = useProblems();
 
   const activeProblem = problems.find(p => p.id === activeProblemId) || problems[0] || null;
 
@@ -24,29 +25,54 @@ export const App: React.FC = () => {
     setCurrentView('workspace');
   };
 
-  const handleCreateDraft = (newProblem: Problem) => {
-    setProblems(prev => [newProblem, ...prev]);
-    setActiveProblemId(newProblem.id);
-  };
-
-  const handleToggleDemoData = () => {
-    if (problems.some(p => p.id === DEMO_PROBLEM.id)) {
-      // Remove demo problem
-      setProblems(prev => prev.filter(p => p.id !== DEMO_PROBLEM.id));
-      if (activeProblemId === DEMO_PROBLEM.id) {
-        setActiveProblemId(null);
-        if (currentView === 'workspace') setCurrentView('dashboard');
-      }
-    } else {
-      // Add demo problem
-      setProblems(prev => [DEMO_PROBLEM, ...prev]);
-      setActiveProblemId(DEMO_PROBLEM.id);
+  const handleCreateDraft = async (newProblem: Problem) => {
+    try {
+      const created = await createProblem(newProblem);
+      setActiveProblemId(created.id);
+      setCurrentView('workspace');
+    } catch (err) {
+      console.error('[App] failed to create problem:', err);
+      // Fallback: add locally so UI isn't blocked if backend is down
+      setActiveProblemId(newProblem.id);
+      setCurrentView('workspace');
     }
   };
 
-  const hasDemoData = problems.some(p => p.id === DEMO_PROBLEM.id);
-
   const renderCurrentView = () => {
+    if (loading && problems.length === 0) {
+      return (
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          height: '100%',
+          gap: '1rem',
+          color: 'var(--text-secondary)'
+        }}>
+          <div className="spinner" style={{
+            width: 40, height: 40,
+            border: '3px solid var(--border-subtle)',
+            borderTopColor: 'var(--accent-primary)',
+            borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite'
+          }} />
+          <span>Connecting to backend…</span>
+          {error && (
+            <p style={{ color: 'var(--status-failed)', fontSize: '0.875rem', maxWidth: 400, textAlign: 'center' }}>
+              {error} — running in offline mode.{' '}
+              <button
+                onClick={refreshProblems}
+                style={{ color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
+              >
+                Retry
+              </button>
+            </p>
+          )}
+        </div>
+      );
+    }
+
     switch (currentView) {
       case 'dashboard':
         return (
@@ -54,8 +80,8 @@ export const App: React.FC = () => {
             problems={problems}
             onNavigateNewProblem={() => setCurrentView('new-problem')}
             onOpenProblem={handleOpenProblem}
-            onToggleDemoData={handleToggleDemoData}
-            hasDemoData={hasDemoData}
+            onToggleDemoData={() => {}}
+            hasDemoData={false}
           />
         );
       case 'new-problem':
@@ -105,8 +131,8 @@ export const App: React.FC = () => {
             problems={problems}
             onNavigateNewProblem={() => setCurrentView('new-problem')}
             onOpenProblem={handleOpenProblem}
-            onToggleDemoData={handleToggleDemoData}
-            hasDemoData={hasDemoData}
+            onToggleDemoData={() => {}}
+            hasDemoData={false}
           />
         );
     }
