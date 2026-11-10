@@ -111,6 +111,55 @@ async function request<T>(
   return res.json() as Promise<T>;
 }
 
+export const apiClient = request;
+
+// ─── Generation API ───────────────────────────────────────────────────────────
+
+export interface ApiGenerationStepLog {
+  step: number;
+  key: string;
+  name: string;
+  status: 'running' | 'completed' | 'failed' | 'pending';
+  timestamp: string;
+  error?: string;
+}
+
+export interface ApiGenerationStatus {
+  job_id: string;
+  problem_id: string;
+  status: 'running' | 'completed' | 'failed' | 'pending';
+  current_step: number;
+  total_steps: number;
+  current_step_name: string | null;
+  steps_log: ApiGenerationStepLog[];
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export const generationApi = {
+  start(problemId: string): Promise<{ job_id: string; problem_id: string; message: string }> {
+    return request<{ job_id: string; problem_id: string; message: string }>(
+      `/problems/${problemId}/generate`,
+      { method: 'POST' }
+    );
+  },
+
+  status(problemId: string): Promise<ApiGenerationStatus> {
+    return request<ApiGenerationStatus>(`/problems/${problemId}/generation-status`);
+  },
+
+  regenerateStep(problemId: string, step: string): Promise<{ artifact_type: string; message: string }> {
+    return request<{ artifact_type: string; message: string }>(
+      `/problems/${problemId}/regenerate-step`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ step }),
+      }
+    );
+  },
+};
+
 // ─── Problems API ─────────────────────────────────────────────────────────────
 
 export const problemsApi = {

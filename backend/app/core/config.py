@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     POSTGRES_PASSWORD: str = ""
     DATABASE_URL: Optional[str] = None
 
+    # AI Provider settings
+    AI_PROVIDER: str = "gemini"
+    GEMINI_API_KEY: str = ""
+    AI_MODEL: str = "gemini-1.5-flash"
+
     # CORS origins
     CORS_ORIGINS: List[str] = [
         "http://localhost:5173",

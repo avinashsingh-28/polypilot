@@ -12,15 +12,19 @@ import {
   Layers
 } from 'lucide-react';
 import { Problem, ProblemDifficulty } from '../types/problem';
+import { useGeneration } from '../hooks/useGeneration';
+import { GenerationProgress } from '../components/generation/GenerationProgress';
 
 interface NewProblemPageProps {
-  onCreateDraft: (problem: Problem) => void | Promise<void>;
+  onCreateDraft: (problem: Problem) => Promise<Problem | void> | void;
   onNavigateProblems: () => void;
+  onNavigateWorkspace?: (id: string) => void;
 }
 
 export const NewProblemPage: React.FC<NewProblemPageProps> = ({
   onCreateDraft,
-  onNavigateProblems
+  onNavigateProblems,
+  onNavigateWorkspace,
 }) => {
   const [title, setTitle] = useState('');
   const [shortIdea, setShortIdea] = useState('');
@@ -42,10 +46,18 @@ export const NewProblemPage: React.FC<NewProblemPageProps> = ({
   const [bruteForceThreshold, setBruteForceThreshold] = useState(15);
   const [stressTestCount, setStressTestCount] = useState(50);
 
-  // Validation, submission & Phase Notice state
+  // Validation, submission & Generation state
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submittedDraft, setSubmittedDraft] = useState<Problem | null>(null);
+  const [createdProblemId, setCreatedProblemId] = useState<string | null>(null);
+
+  const {
+    isGenerating,
+    status: genStatus,
+    error: genError,
+    startGeneration,
+  } = useGeneration();
 
   const handleGenerateClick = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -76,32 +88,17 @@ export const NewProblemPage: React.FC<NewProblemPageProps> = ({
       status: 'draft',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      artifacts: {
-        statement: {
-          legend: shortIdea.trim() || 'Problem statement formulation pending.',
-          inputFormat: inputDescription.trim() || 'First line contains integer t...',
-          outputFormat: outputDescription.trim() || 'Output result for each testcase...',
-          samples: sampleInput.trim() ? [{ input: sampleInput, output: sampleOutput }] : [],
-          notes: ''
-        },
-        editorial: {
-          approach: intendedAlgorithm.trim() || 'Approach analysis will be synthesized in Phase 3.',
-          complexityTime: 'O(N log N) expected',
-          complexitySpace: 'O(N) expected',
-          proof: ''
-        },
-        solutions: [],
-        validator: { filename: 'validator.cpp', code: '// Validator to be generated in Phase 3\n', boundsNotes: '' },
-        checker: { filename: 'checker.cpp', type: customChecker ? 'custom' : 'standard', standardName: 'ncmp.cpp', code: '' },
-        generators: [],
-        tests: []
-      }
+      artifacts: undefined,
     };
 
     setSubmitting(true);
     try {
-      await onCreateDraft(newProblem);
-      setSubmittedDraft(newProblem);
+      const res = await onCreateDraft(newProblem);
+      const targetProblem = (res && typeof res === 'object' && 'id' in res) ? (res as Problem) : newProblem;
+      setSubmittedDraft(targetProblem);
+      setCreatedProblemId(targetProblem.id);
+      // Start AI multi-step generation pipeline
+      await startGeneration(targetProblem.id);
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to save problem';
       setFormError(`Save failed: ${msg}`);
@@ -122,45 +119,54 @@ export const NewProblemPage: React.FC<NewProblemPageProps> = ({
         </p>
       </div>
 
-      {/* Phase 3 Notice Banner if submitted */}
-      {submittedDraft && (
-        <div
-          className="card"
-          style={{
-            padding: '18px 20px',
-            backgroundColor: 'var(--info-bg)',
-            borderColor: 'var(--info-border)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '10px'
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--info-text)', fontWeight: 600, fontSize: '14px' }}>
-            <CheckCircle2 size={18} />
-            <span>Problem Form Validated & Saved as Local Draft!</span>
-          </div>
-          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-            Your problem specification <strong>"{submittedDraft.title}"</strong> has been structured and recorded in local memory.
-            <br />
-            <strong>AI Artifact Generation</strong> (LaTeX statement, reference solution, testlib validator, and generator suite) will be activated in <strong>Phase 3</strong>. In the meantime, you can explore the draft in the problem workspace or inspect the demonstration problem.
-          </p>
-          <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
-            <button
-              onClick={onNavigateProblems}
-              className="btn btn-primary"
-              style={{ padding: '6px 14px', fontSize: '12px' }}
-            >
-              <span>View in My Problems</span>
-              <ArrowRight size={13} />
-            </button>
-            <button
-              onClick={() => setSubmittedDraft(null)}
-              className="btn btn-secondary"
-              style={{ padding: '6px 14px', fontSize: '12px' }}
-            >
-              <span>Create Another</span>
-            </button>
-          </div>
+      {/* Generation Progress Panel or Status Notice */}
+      {(isGenerating || genStatus || genError) && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <GenerationProgress
+            status={genStatus}
+            isGenerating={isGenerating}
+            error={genError}
+            onDismiss={() => {
+              setSubmittedDraft(null);
+            }}
+          />
+
+          {/* Quick Action Buttons */}
+          {submittedDraft && (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              {onNavigateWorkspace && (
+                <button
+                  type="button"
+                  onClick={() => onNavigateWorkspace(createdProblemId || submittedDraft.id)}
+                  className="btn btn-primary"
+                  style={{ padding: '7px 16px', fontSize: '13px' }}
+                >
+                  <span>Open in Problem Workspace</span>
+                  <ArrowRight size={14} />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onNavigateProblems}
+                className="btn btn-secondary"
+                style={{ padding: '7px 16px', fontSize: '13px' }}
+              >
+                <span>View All Problems</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSubmittedDraft(null);
+                  setTitle('');
+                  setShortIdea('');
+                }}
+                className="btn btn-ghost"
+                style={{ padding: '7px 14px', fontSize: '13px' }}
+              >
+                <span>Create Another</span>
+              </button>
+            </div>
+          )}
         </div>
       )}
 

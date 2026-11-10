@@ -4,6 +4,7 @@ from app.core.config import get_settings
 from app.api.routes.health import router as health_router
 from app.api.routes.problems import router as problems_router
 from app.api.routes.artifacts import router as artifacts_router
+from app.api.routes.generation import router as generation_router
 
 settings = get_settings()
 
@@ -31,5 +32,6 @@ app.include_router(health_router)
 api_v1_router = APIRouter(prefix=settings.API_V1_PREFIX)
 api_v1_router.include_router(problems_router)
 api_v1_router.include_router(artifacts_router)
+api_v1_router.include_router(generation_router)
 
 app.include_router(api_v1_router)

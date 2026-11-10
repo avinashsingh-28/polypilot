@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppLayout } from './components/layout/AppLayout';
 import { NavView } from './components/layout/Sidebar';
 import { DashboardPage } from './pages/DashboardPage';
@@ -16,25 +16,32 @@ export const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<NavView>('dashboard');
   const [activeProblemId, setActiveProblemId] = useState<string | null>(null);
 
-  const { problems, loading, error, createProblem, refreshProblems } = useProblems();
+  const { problems, loading, error, createProblem, refreshProblems, loadProblemArtifacts } = useProblems();
 
   const activeProblem = problems.find(p => p.id === activeProblemId) || problems[0] || null;
 
+  useEffect(() => {
+    if (activeProblem?.id) {
+      loadProblemArtifacts(activeProblem.id);
+    }
+  }, [activeProblem?.id, loadProblemArtifacts]);
+
   const handleOpenProblem = (id: string) => {
     setActiveProblemId(id);
+    loadProblemArtifacts(id);
     setCurrentView('workspace');
   };
 
-  const handleCreateDraft = async (newProblem: Problem) => {
+  const handleCreateDraft = async (newProblem: Problem): Promise<Problem> => {
     try {
       const created = await createProblem(newProblem);
       setActiveProblemId(created.id);
-      setCurrentView('workspace');
+      return created;
     } catch (err) {
       console.error('[App] failed to create problem:', err);
       // Fallback: add locally so UI isn't blocked if backend is down
       setActiveProblemId(newProblem.id);
-      setCurrentView('workspace');
+      return newProblem;
     }
   };
 
@@ -89,6 +96,7 @@ export const App: React.FC = () => {
           <NewProblemPage
             onCreateDraft={handleCreateDraft}
             onNavigateProblems={() => setCurrentView('my-problems')}
+            onNavigateWorkspace={(id) => handleOpenProblem(id)}
           />
         );
       case 'my-problems':
@@ -104,6 +112,7 @@ export const App: React.FC = () => {
           <ProblemWorkspacePage
             problem={activeProblem}
             onBack={() => setCurrentView('my-problems')}
+            onRefreshProblem={loadProblemArtifacts}
           />
         ) : (
           <MyProblemsPage

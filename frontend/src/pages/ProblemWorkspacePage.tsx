@@ -13,7 +13,9 @@ import {
   Play,
   UploadCloud,
   Download,
-  AlertCircle
+  AlertCircle,
+  Sparkles,
+  RefreshCw
 } from 'lucide-react';
 import { Problem } from '../types/problem';
 import { Badge } from '../components/common/Badge';
@@ -28,6 +30,8 @@ import { TestCasesTab } from '../components/workspace/TestCasesTab';
 import { VerificationTab } from '../components/workspace/VerificationTab';
 import { PolygonTab } from '../components/workspace/PolygonTab';
 import { Modal } from '../components/common/Modal';
+import { useGeneration } from '../hooks/useGeneration';
+import { GenerationProgress } from '../components/generation/GenerationProgress';
 
 export type WorkspaceTabId = 
   | 'overview' 
@@ -44,15 +48,28 @@ export type WorkspaceTabId =
 interface ProblemWorkspacePageProps {
   problem: Problem;
   onBack: () => void;
+  onRefreshProblem?: (id: string) => Promise<void>;
 }
 
 export const ProblemWorkspacePage: React.FC<ProblemWorkspacePageProps> = ({
   problem,
-  onBack
+  onBack,
+  onRefreshProblem,
 }) => {
   const [activeTab, setActiveTab] = useState<WorkspaceTabId>('overview');
   const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [showPublishModal, setShowPublishModal] = useState(false);
+
+  const {
+    isGenerating,
+    status: genStatus,
+    error: genError,
+    startGeneration,
+  } = useGeneration(async (problemId) => {
+    if (onRefreshProblem) {
+      await onRefreshProblem(problemId);
+    }
+  });
 
   const tabs: { id: WorkspaceTabId; label: string; icon: React.FC<{ size: number }> }[] = [
     { id: 'overview', label: 'Overview', icon: FileText },
@@ -134,6 +151,22 @@ export const ProblemWorkspacePage: React.FC<ProblemWorkspacePageProps> = ({
         {/* Global Action Buttons */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
+            onClick={() => startGeneration(problem.id)}
+            disabled={isGenerating}
+            className="btn btn-primary"
+            style={{ fontSize: '12px' }}
+          >
+            <Sparkles size={14} />
+            <span>
+              {isGenerating
+                ? 'Generating…'
+                : problem.artifacts
+                  ? 'Regenerate All'
+                  : 'Generate with AI'}
+            </span>
+          </button>
+
+          <button
             onClick={() => setShowVerifyModal(true)}
             className="btn btn-secondary"
             style={{ fontSize: '12px' }}
@@ -144,7 +177,7 @@ export const ProblemWorkspacePage: React.FC<ProblemWorkspacePageProps> = ({
 
           <button
             onClick={() => setShowPublishModal(true)}
-            className="btn btn-primary"
+            className="btn btn-secondary"
             style={{ fontSize: '12px' }}
           >
             <UploadCloud size={14} />
@@ -152,6 +185,15 @@ export const ProblemWorkspacePage: React.FC<ProblemWorkspacePageProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Generation Progress Banner */}
+      {(isGenerating || genStatus || genError) && (
+        <GenerationProgress
+          status={genStatus}
+          isGenerating={isGenerating}
+          error={genError}
+        />
+      )}
 
       {/* Tabs Navigation Bar */}
       <div

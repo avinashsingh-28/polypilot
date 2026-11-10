@@ -8,7 +8,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { problemsApi } from '../api/client';
-import { apiProblemToFrontend, frontendToApiCreate } from '../api/mappers';
+import { apiProblemToFrontend, apiArtifactsToFrontend, frontendToApiCreate } from '../api/mappers';
 import type { Problem } from '../types/problem';
 
 interface UseProblemsReturn {
@@ -18,6 +18,7 @@ interface UseProblemsReturn {
   createProblem: (data: Omit<Problem, 'id' | 'slug' | 'status' | 'createdAt' | 'updatedAt'>) => Promise<Problem>;
   deleteProblem: (id: string) => Promise<void>;
   refreshProblems: () => Promise<void>;
+  loadProblemArtifacts: (id: string) => Promise<void>;
 }
 
 export function useProblems(): UseProblemsReturn {
@@ -60,6 +61,20 @@ export function useProblems(): UseProblemsReturn {
     setProblems(prev => prev.filter(p => p.id !== id));
   }, []);
 
+  const loadProblemArtifacts = useCallback(async (id: string): Promise<void> => {
+    try {
+      const [apiProb, artifacts] = await Promise.all([
+        problemsApi.get(id),
+        problemsApi.listArtifacts(id),
+      ]);
+      const mapped = apiProblemToFrontend(apiProb);
+      mapped.artifacts = apiArtifactsToFrontend(artifacts, mapped);
+      setProblems(prev => prev.map(p => (p.id === id ? mapped : p)));
+    } catch (err) {
+      console.warn('[useProblems] loadProblemArtifacts error:', err);
+    }
+  }, []);
+
   return {
     problems,
     loading,
@@ -67,5 +82,6 @@ export function useProblems(): UseProblemsReturn {
     createProblem,
     deleteProblem,
     refreshProblems: fetchProblems,
+    loadProblemArtifacts,
   };
 }
