@@ -131,10 +131,27 @@ const Dashboard: React.FC<{ pid: string; summary: ApiVerificationSummary | null;
       </div>
 
       <Section title="Quick actions" icon={<Play size={15} style={{ color: 'var(--brand-primary)' }} />}>
+        {!(summary.test_case_counts.total > 0) && (
+          <Notice kind="warning">
+            This problem has no test cases yet, so the validator and reference runs have nothing to check.
+            Start with <strong>1. Import samples</strong>, then <strong>2. Test validator</strong> and <strong>3. Generate tests</strong>.
+          </Notice>
+        )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => start('validator')}>Test validator (valid + invalid inputs)</button>
-          <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => start('reference')}>Run reference on all tests</button>
-          <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => start('differential', { iterations: 100 })}>Differential (100 iterations)</button>
+          <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy}
+            onClick={async () => {
+              setBusy(true); setErr(null);
+              try {
+                const created = await verificationApi.importSamples(pid);
+                if (!created.length) setErr('No new samples to import (already imported, or the specification has none).');
+                onStarted();
+              } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
+            }}>1. Import samples</button>
+          <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => start('validator')}>2. Test validator (valid + invalid inputs)</button>
+          <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy}
+            onClick={() => start('generate', { count: 10, seed: 1, gen_type: 'small' })}>3. Generate 10 tests</button>
+          <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => start('reference')}>4. Run reference on all tests</button>
+          <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy} onClick={() => start('differential', { iterations: 100 })}>5. Differential (100 iterations)</button>
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
           Test cases: {summary.test_case_counts.total ?? 0} total • {summary.test_case_counts.valid ?? 0} valid • {summary.test_case_counts.invalid ?? 0} invalid • {summary.test_case_counts.unchecked ?? 0} unchecked

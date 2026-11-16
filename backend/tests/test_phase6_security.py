@@ -348,3 +348,17 @@ def test_database_outage_returns_503(client, monkeypatch):
     monkeypatch.setattr(ai_routes, "calls_today", down)
     r = client.get(f"{API}/ai/status")
     assert r.status_code == 503 and "temporarily unavailable" in r.json()["detail"] and "refused" not in r.text
+
+
+def test_validator_prompt_uses_real_testlib_api():
+    """Regression: the prompt told the model to call registerValidator(), which does not exist in
+    testlib.h, so every generated validator failed to compile."""
+    from app.services.ai.prompts import generator_prompt, validator_prompt
+    spec = {"problem_name": "X", "input_format": "n", "constraints": {"n_max": 10, "other": []}}
+    vp, gp = validator_prompt(spec), generator_prompt(spec)
+    assert "registerValidation(argc, argv);" in vp
+    assert "{ registerValidator(argc, argv);" not in vp
+    assert "registerGen(argc, argv, 1);" in gp
+    with open("sandbox/testlib.h", encoding="utf-8", errors="replace") as f:
+        testlib = f.read()
+    assert "void registerValidation(int argc" in testlib and "void registerGen(int argc" in testlib

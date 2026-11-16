@@ -209,7 +209,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', fontWeight: 600, color: 'var(--text-secondary)' }}>
               <ShieldCheck size={13} style={{ color: 'var(--brand-primary)' }} />
-              <span>Phase 1: UI Foundation</span>
+              <span>Verified problem setting</span>
             </div>
             <div style={{ marginTop: '2px' }}>
               Polygon CP Problem Setter

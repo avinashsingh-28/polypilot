@@ -153,11 +153,13 @@ Constraints:
   - {chr(10).join(f'  - {c}' for c in other)}
 
 Write a complete C++ testlib validator (using testlib.h) that:
-- Begins with `#include "testlib.h"` and `int main(int argc, char* argv[]) {{ registerValidator(argc, argv);`
-- Reads and validates EVERY value in the input
-- Checks ALL constraints rigorously (use `inf.readInt(lo, hi, "var_name")` etc.)
+- Begins with `#include "testlib.h"` and `int main(int argc, char* argv[]) {{ registerValidation(argc, argv);`
+  (the testlib function is `registerValidation` — `registerValidator` does NOT exist and will not compile)
+- Reads and validates EVERY value in the input, including every space (`inf.readSpace()`) and newline (`inf.readEoln()`)
+- Checks ALL constraints rigorously (use `inf.readInt(lo, hi, "var_name")` etc.), including sum constraints
 - Calls `inf.readEof()` at the end
 - Has no output (validators don't print anything on success)
+- Uses only the standard testlib API listed below (it is compiled with g++ -std=c++17 against the official testlib.h)
 
 Testlib reference:
 - `inf.readInt(lo, hi, "name")` — read and validate integer
