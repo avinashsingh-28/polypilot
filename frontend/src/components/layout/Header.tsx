@@ -85,7 +85,7 @@ export const Header: React.FC<HeaderProps> = ({
             fontSize: '12px'
           }}
         >
-          <StatusIndicator status="online" pulse label="Phase 1 Active" />
+          <WorkerStatus />
         </div>
 
         {/* Quick Search Placeholder */}
@@ -138,4 +138,31 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
     </header>
   );
+};
+
+/** Live verification-worker status from the backend (not a static label). */
+const WorkerStatus: React.FC = () => {
+  const [state, setState] = React.useState<{ status: 'online' | 'busy' | 'offline' | 'error'; label: string }>(
+    { status: 'offline', label: 'Checking worker…' });
+  React.useEffect(() => {
+    const base = (import.meta.env.VITE_API_URL ?? '/api/v1').replace(/\/api\/v1$/, '');
+    let stop = false;
+    const check = async () => {
+      try {
+        const r = await fetch(`${base}/health/worker`, { credentials: 'include' });
+        const d = await r.json();
+        if (stop) return;
+        if (!r.ok || !d.workers_alive) setState({ status: 'error', label: 'Worker offline' });
+        else if (!d.sandbox_available) setState({ status: 'error', label: 'Sandbox unavailable' });
+        else if (d.workers_busy) setState({ status: 'busy', label: `Worker busy · ${d.queued_runs} queued` });
+        else setState({ status: 'online', label: 'Worker online' });
+      } catch {
+        if (!stop) setState({ status: 'error', label: 'Server unreachable' });
+      }
+    };
+    void check();
+    const t = setInterval(check, 30000);
+    return () => { stop = true; clearInterval(t); };
+  }, []);
+  return <StatusIndicator status={state.status} pulse={state.status === 'online'} label={state.label} />;
 };

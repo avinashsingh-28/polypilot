@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # AI Provider settings
     AI_PROVIDER: str = "gemini"
     GEMINI_API_KEY: str = ""
-    AI_MODEL: str = "gemini-1.5-flash"
+    AI_MODEL: str = "gemini-3.5-flash"
     AI_TIMEOUT_SEC: float = 120.0
     AI_MAX_RETRIES: int = 2                    # transient errors only (429/5xx/timeouts)
     AI_MAX_OUTPUT_TOKENS: int = 8192

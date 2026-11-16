@@ -28,7 +28,7 @@ def _strip_fences(raw: str) -> str:
 class GeminiProvider(AIProvider):
     name = "gemini"
 
-    def __init__(self, api_key: str, model: str = "gemini-1.5-flash", *, timeout_sec: float = 120.0,
+    def __init__(self, api_key: str, model: str = "gemini-3.5-flash", *, timeout_sec: float = 120.0,
                  max_retries: int = 2, max_output_tokens: int = 8192, max_prompt_chars: int = 60000):
         if not api_key:
             raise AIError("missing_key", "GEMINI_API_KEY is not configured")
@@ -56,8 +56,14 @@ class GeminiProvider(AIProvider):
             return AIError("rate_limited", "AI provider rate limit or quota exceeded")
         if code in (401, 403):
             return AIError("auth", "AI provider rejected the API key")
+        if code == 404:
+            # Google's message names the recommended replacement model; it contains no secrets.
+            detail = str(getattr(exc, "message", "") or "").split(" We recommend")[0][:240]
+            return AIError("model_not_found", "AI model not found or not available for this API key — set AI_MODEL "
+                                              "in backend/.env to a current model." + (f" Provider says: {detail}" if detail else ""))
         if isinstance(code, int) and code >= 500:
-            return AIError("unavailable", f"AI provider error {code}")
+            return AIError("unavailable", f"AI provider is overloaded or temporarily unavailable (HTTP {code}). "
+                                          "Try again in a few minutes, or set AI_MODEL to another model.")
         if isinstance(code, int) and 400 <= code < 500:
             return AIError("invalid_request", f"AI provider rejected the request ({code})")
         if "Timeout" in name or "Connect" in name or "Network" in name or isinstance(exc, (ConnectionError, OSError)):

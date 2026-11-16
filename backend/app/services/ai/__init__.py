@@ -21,7 +21,7 @@ def get_ai_provider(settings) -> AIProvider:
         from app.services.ai.gemini import GeminiProvider
         return GeminiProvider(
             api_key=settings.GEMINI_API_KEY,
-            model=getattr(settings, "AI_MODEL", "gemini-1.5-flash"),
+            model=getattr(settings, "AI_MODEL", "gemini-3.5-flash"),
             timeout_sec=settings.AI_TIMEOUT_SEC, max_retries=settings.AI_MAX_RETRIES,
             max_output_tokens=settings.AI_MAX_OUTPUT_TOKENS, max_prompt_chars=settings.AI_MAX_PROMPT_CHARS,
         )
