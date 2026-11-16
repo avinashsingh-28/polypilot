@@ -274,23 +274,32 @@ export const ProblemWorkspacePage: React.FC<ProblemWorkspacePageProps> = ({
         isOpen={showPublishModal}
         onClose={() => setShowPublishModal(false)}
         title="Publish to Codeforces Polygon"
-        subtitle="Phase 5 Integration Pipeline"
+        subtitle="Nothing is uploaded from this dialog"
         footer={
-          <button onClick={() => setShowPublishModal(false)} className="btn btn-secondary">
-            Close
-          </button>
+          <>
+            <button onClick={() => setShowPublishModal(false)} className="btn btn-secondary">
+              Close
+            </button>
+            <button onClick={() => { setShowPublishModal(false); setActiveTab('polygon'); }} className="btn btn-primary">
+              Open Polygon tab
+            </button>
+          </>
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--info-text)', fontWeight: 600 }}>
             <Globe2 size={18} />
-            <span>Official Polygon API Authentication (Phase 5)</span>
+            <span>Publishing happens step by step in the Polygon tab</span>
           </div>
-          <p>
-            When publishing, PolyPilot connects using your Polygon API Key & Secret with SHA-512 request signing, uploads the LaTeX statement, C++ solutions, testlib validator, and test scripts, commits the revision, and polls the package build result.
-          </p>
+          <ol style={{ paddingLeft: 18, margin: 0 }}>
+            <li><strong>Link</strong> an existing Polygon problem or <strong>create</strong> a new one.</li>
+            <li><strong>Dry run</strong>: reads Polygon and lists exactly what would change. Nothing is written.</li>
+            <li><strong>Upload</strong>: writes the statement, solutions, validator, generator and validated tests to your Polygon <em>working copy</em>.</li>
+            <li><strong>Commit</strong>: only when you confirm with the problem ID.</li>
+            <li><strong>Build package</strong>: only when you confirm, then shows Polygon's real build result.</li>
+          </ol>
           <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-surface-subtle)', fontSize: '12px' }}>
-            You can configure your Polygon credentials on the <strong>Polygon Integration</strong> settings page.
+            Requires Polygon API credentials (Polygon Integration page). Validators and checkers are uploaded only if they passed verification.
           </div>
         </div>
       </Modal>
