@@ -1,5 +1,6 @@
 import React from 'react';
-import { Plus, Search, Terminal } from 'lucide-react';
+import { LogOut, Plus, Search, Terminal } from 'lucide-react';
+import { useAuth } from '../../auth/AuthContext';
 import { NavView } from './Sidebar';
 import { StatusIndicator } from '../common/StatusIndicator';
 
@@ -14,6 +15,7 @@ export const Header: React.FC<HeaderProps> = ({
   onNavigate,
   activeProblemTitle
 }) => {
+  const { user, logout } = useAuth();
   const getBreadcrumbs = () => {
     switch (currentView) {
       case 'dashboard':
@@ -27,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
       case 'polygon':
         return <span>Polygon Integration</span>;
       case 'ai-providers':
-        return <span>AI Providers & BYOK</span>;
+        return <span>AI Provider</span>;
       case 'settings':
         return <span>Settings</span>;
       case 'workspace':
@@ -108,9 +110,19 @@ export const Header: React.FC<HeaderProps> = ({
               color: 'var(--text-primary)'
             }}
             readOnly
-            title="Search will connect to backend database in Phase 2"
+            disabled
+            aria-label="Search (not implemented yet)"
+            title="Search is not implemented yet"
           />
         </div>
+
+        {user && (
+          <button onClick={() => void logout()} className="btn btn-ghost" style={{ padding: '6px 10px', fontSize: '12px' }}
+            title={`Signed in as ${user.email}`} aria-label="Sign out">
+            <LogOut size={14} />
+            <span>Sign out</span>
+          </button>
+        )}
 
         {/* Primary New Problem Button */}
         {currentView !== 'new-problem' && (

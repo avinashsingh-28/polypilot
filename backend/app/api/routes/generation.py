@@ -5,10 +5,9 @@ POST /problems/{problem_id}/generate         — start a generation job
 GET  /problems/{problem_id}/generation-status — poll job progress
 POST /problems/{problem_id}/regenerate-step  — regenerate a single artifact step
 """
-import asyncio
 import uuid
 import logging
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
@@ -203,7 +202,13 @@ async def regenerate_step(
         except json.JSONDecodeError:
             pass
 
-    ai = get_ai_provider(settings)
+    from app.services.ai import TrackedProvider
+    from app.services.ai.base import AIError
+    try:
+        ai = TrackedProvider(get_ai_provider(settings), lambda: db, problem.owner_id, problem.id,
+                             f"regenerate:{body.step}", settings.AI_MAX_CALLS_PER_USER_PER_DAY)
+    except AIError as exc:
+        raise HTTPException(status_code=503, detail=exc.message)
     step_map = {
         "statement": run_statement,
         "reference_solution": run_reference_solution,
@@ -216,8 +221,12 @@ async def regenerate_step(
     try:
         result = await step_map[body.step](ai, problem, spec)
         _upsert_artifact(db, problem_id, body.step, result)
-    except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Regeneration failed: {exc}")
+    except AIError as exc:
+        code = 429 if exc.kind in ("quota_exceeded", "rate_limited") else 502
+        raise HTTPException(status_code=code, detail=f"Regeneration failed [{exc.kind}]: {exc.message}")
+    except Exception:
+        logger.exception("regeneration failed")
+        raise HTTPException(status_code=500, detail="Regeneration failed (see server logs)")
 
     return RegenerateStepResponse(
         artifact_type=body.step,

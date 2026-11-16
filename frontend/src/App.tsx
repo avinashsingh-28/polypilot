@@ -1,14 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { AppLayout } from './components/layout/AppLayout';
 import { NavView } from './components/layout/Sidebar';
 import { DashboardPage } from './pages/DashboardPage';
-import { NewProblemPage } from './pages/NewProblemPage';
+const NewProblemPage = lazy(() => import('./pages/NewProblemPage').then((m) => ({ default: m.NewProblemPage })));
 import { MyProblemsPage } from './pages/MyProblemsPage';
-import { ProblemWorkspacePage } from './pages/ProblemWorkspacePage';
-import { VerificationHistoryPage } from './pages/VerificationHistoryPage';
-import { AIProvidersPage } from './pages/AIProvidersPage';
-import { PolygonSettingsPage } from './pages/PolygonSettingsPage';
-import { SettingsPage } from './pages/SettingsPage';
+const ProblemWorkspacePage = lazy(() => import('./pages/ProblemWorkspacePage').then((m) => ({ default: m.ProblemWorkspacePage })));
+const VerificationHistoryPage = lazy(() => import('./pages/VerificationHistoryPage').then((m) => ({ default: m.VerificationHistoryPage })));
+const AIProvidersPage = lazy(() => import('./pages/AIProvidersPage').then((m) => ({ default: m.AIProvidersPage })));
+const PolygonSettingsPage = lazy(() => import('./pages/PolygonSettingsPage').then((m) => ({ default: m.PolygonSettingsPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then((m) => ({ default: m.SettingsPage })));
 import { Problem } from './types/problem';
 import { useProblems } from './hooks/useProblems';
 
@@ -33,16 +33,10 @@ export const App: React.FC = () => {
   };
 
   const handleCreateDraft = async (newProblem: Problem): Promise<Problem> => {
-    try {
-      const created = await createProblem(newProblem);
-      setActiveProblemId(created.id);
-      return created;
-    } catch (err) {
-      console.error('[App] failed to create problem:', err);
-      // Fallback: add locally so UI isn't blocked if backend is down
-      setActiveProblemId(newProblem.id);
-      return newProblem;
-    }
+    // No offline fallback: a draft that was not saved by the backend must not appear as saved.
+    const created = await createProblem(newProblem);
+    setActiveProblemId(created.id);
+    return created;
   };
 
   const renderCurrentView = () => {
@@ -67,7 +61,7 @@ export const App: React.FC = () => {
           <span>Connecting to backend…</span>
           {error && (
             <p style={{ color: 'var(--status-failed)', fontSize: '0.875rem', maxWidth: 400, textAlign: 'center' }}>
-              {error} — running in offline mode.{' '}
+              {error}{' '}
               <button
                 onClick={refreshProblems}
                 style={{ color: 'var(--accent-primary)', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}
@@ -154,7 +148,9 @@ export const App: React.FC = () => {
       activeProblemTitle={activeProblem?.title}
       problemCount={problems.length}
     >
-      {renderCurrentView()}
+      <Suspense fallback={<div role="status" style={{ padding: 24, color: 'var(--text-secondary)' }}>Loading…</div>}>
+        {renderCurrentView()}
+      </Suspense>
     </AppLayout>
   );
 };

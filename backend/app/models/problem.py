@@ -2,7 +2,7 @@ import uuid
 from typing import List, Optional
 from datetime import datetime
 from decimal import Decimal
-from sqlalchemy import String, Text, Integer, Numeric, DateTime, Uuid, func
+from sqlalchemy import String, Text, Integer, Numeric, DateTime, ForeignKey, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.base import Base
 
@@ -15,6 +15,9 @@ class Problem(Base):
         primary_key=True,
         default=uuid.uuid4
     )
+    owner_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )  # NULL = legacy/unclaimed (inaccessible via the API until claimed)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     slug: Mapped[str] = mapped_column(String(255), unique=True, index=True, nullable=False)
     idea: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

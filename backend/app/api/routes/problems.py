@@ -1,9 +1,11 @@
 import uuid
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 from app.db.session import get_db
+from app.api.deps import require_user
+from app.models.user import User
 from app.models.problem import Problem
 from app.models.artifact import ProblemArtifact
 from app.models.verification import VerificationRun
@@ -24,14 +26,16 @@ router = APIRouter(prefix="/problems", tags=["Problems"])
 def list_problems(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
 ) -> ProblemListResponse:
-    """List problems ordered by most recently updated, with basic pagination."""
-    total_query = select(func.count(Problem.id))
+    """List the current user's problems ordered by most recently updated, with pagination."""
+    total_query = select(func.count(Problem.id)).where(Problem.owner_id == user.id)
     total = db.scalar(total_query) or 0
 
     stmt = (
         select(Problem)
+        .where(Problem.owner_id == user.id)
         .order_by(Problem.updated_at.desc())
         .offset(offset)
         .limit(limit)
@@ -49,7 +53,8 @@ def list_problems(
 @router.post("", response_model=ProblemResponse, status_code=status.HTTP_201_CREATED)
 def create_problem(
     payload: ProblemCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(require_user),
 ) -> Problem:
     """Create a new problem draft with a unique slug."""
     # Ensure slug uniqueness
@@ -59,6 +64,7 @@ def create_problem(
         base_slug = f"{base_slug}-{uuid.uuid4().hex[:6]}"
 
     problem = Problem(
+        owner_id=user.id,
         title=payload.title,
         slug=base_slug,
         idea=payload.idea,

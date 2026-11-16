@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "tsc -b",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run --environment node"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
@@ -22,9 +23,13 @@
     "@vitejs/plugin-react": "^4.7.0",
     "oxlint": "^1.88.0",
     "typescript": "~6.0.3",
-    "vite": "^6.4.5"
+    "vite": "^6.4.5",
+    "vitest": "4.1.12"
   },
   "optionalDependencies": {
     "@rolldown/binding-win32-x64-msvc": "^1.2.15"
+  },
+  "overrides": {
+    "dompurify": "3.4.17"
   }
 }

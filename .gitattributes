@@ -1,0 +1,10 @@
+# Files executed or parsed inside Linux containers / servers must keep LF line endings.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+*.dockerignore  text eol=lf
+*.conf          text eol=lf
+*.inc           text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+backend/sandbox/harness.py text eol=lf
+backend/sandbox/testlib.h  text eol=lf

@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16.6-alpine3.20
+        env:
+          POSTGRES_DB: polypilot_ci
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci-only-password
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U ci -d polypilot_ci" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://ci:ci-only-password@localhost:5432/polypilot_ci
+      SANDBOX_DOCKER_MODE: native
+      STARTUP_RECOVERY: "false"
+      GEMINI_API_KEY: ""          # no paid AI calls in CI (AI is mocked)
+      POLYGON_API_KEY: ""         # no live Polygon calls in CI (Polygon is mocked)
+      POLYGON_API_SECRET: ""
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - name: Lint (ruff)
+        run: ruff check .
+      - name: Dependency audit (pip-audit)
+        run: pip-audit -r requirements.txt
+      - name: Build sandbox image
+        run: docker build -t polypilot-sandbox:latest sandbox
+      - name: Unit, API, security and sandbox tests
+        run: pytest -q
+      - name: Migrations — upgrade, full downgrade, upgrade (fresh PostgreSQL)
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+          alembic upgrade head
+      - name: End-to-end evaluation (mock AI + mock Polygon, real sandbox + PostgreSQL)
+        run: python -m scripts.e2e_eval --report e2e-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-report
+          path: backend/e2e-report.json
+          if-no-files-found: ignore
+
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.11.0"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci --no-fund
+      - name: Type check / lint
+        run: npm run lint
+      - name: Unit tests (vitest)
+        run: npm test
+      - name: Production build
+        run: npm run build
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+      - name: No secrets in bundle
+        run: "! grep -rEl 'AIza[0-9A-Za-z_-]{30,}|GEMINI_API_KEY|POLYGON_API_SECRET' dist/"
+
+  docker:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target api -t polypilot-api:ci backend
+      - run: docker build --target worker -t polypilot-worker:ci backend
+      - run: docker build -t polypilot-web:ci frontend
+      - run: docker build -t polypilot-sandbox:ci backend/sandbox
+      - name: Images run as non-root
+        run: |
+          for img in polypilot-api:ci polypilot-worker:ci polypilot-web:ci; do
+            uid=$(docker run --rm --entrypoint id "$img" -u); echo "$img uid=$uid"; [ "$uid" != "0" ]
+          done
+      - name: Compose file is valid
+        run: |
+          cp deploy/.env.prod.example deploy/.env.prod
+          docker compose -f docker-compose.prod.yml --env-file deploy/.env.prod config -q
+
+  secrets:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

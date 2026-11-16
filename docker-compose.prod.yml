@@ -1,0 +1,102 @@
+# Production-like stack on ONE Docker host (a VM you control).
+#
+#   cp deploy/.env.prod.example deploy/.env.prod   # fill in real values (never commit)
+#   docker build -t polypilot-sandbox:latest backend/sandbox
+#   docker compose -f docker-compose.prod.yml --env-file deploy/.env.prod up -d --build
+#
+# Exposed: only `web` (port 8080; put TLS in front of it: Caddy/nginx/Cloudflare Tunnel).
+# PostgreSQL, the API and the worker are reachable only on the private compose networks.
+#
+# SECURITY NOTE (worker): the worker needs the host Docker socket to start sandbox containers.
+# Socket access is root-equivalent on the host, so the worker image is minimal, runs no user code
+# and is never exposed on a network port. Untrusted code runs only in the sandbox containers,
+# which never receive the socket. Prefer a dedicated VM for this stack.
+name: polypilot
+
+services:
+  db:
+    image: postgres:16.6-alpine3.20
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: { context: backend, target: api }
+    image: polypilot-api:local
+    command: ["alembic", "upgrade", "head"]
+    env_file: deploy/.env.prod
+    environment: &dbenv
+      POSTGRES_HOST: db
+      STARTUP_RECOVERY: "false"
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [data]
+    restart: "no"
+
+  backend:
+    image: polypilot-api:local
+    restart: unless-stopped
+    env_file: deploy/.env.prod
+    environment:
+      <<: *dbenv
+      STARTUP_RECOVERY: "true"
+      FORWARDED_ALLOW_IPS: "*"        # only reachable from `web` on the private network
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [data, edge]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 768m
+    pids_limit: 256
+
+  worker:
+    build: { context: backend, target: worker }
+    image: polypilot-worker:local
+    restart: unless-stopped
+    env_file: deploy/.env.prod
+    environment:
+      <<: *dbenv
+      SANDBOX_DOCKER_MODE: native
+    group_add: ["${DOCKER_GID:-999}"]   # host `docker` group id: getent group docker | cut -d: -f3
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [data]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    mem_limit: 512m
+    pids_limit: 128
+
+  web:
+    build: { context: frontend }
+    image: polypilot-web:local
+    restart: unless-stopped
+    ports: ["${WEB_BIND:-127.0.0.1}:8080:8080"]
+    depends_on: [backend]
+    networks: [edge]
+    read_only: true
+    tmpfs: ["/tmp", "/var/cache/nginx"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+
+networks:
+  data: {}     # db, migrate, backend, worker
+  edge: {}     # web <-> backend
+
+volumes:
+  pgdata: {}

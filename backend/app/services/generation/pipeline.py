@@ -2,7 +2,6 @@
 Generation pipeline — orchestrates the 7 AI steps for one problem.
 Runs as an asyncio background task; persists progress to PostgreSQL after each step.
 """
-import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
@@ -69,6 +68,8 @@ def _upsert_artifact(db: Session, problem_id: uuid.UUID,
         .first()
     )
     if existing:
+        if existing.content != content:
+            existing.version = (existing.version or 1) + 1   # lets Phase 4/5 detect changed artifacts
         existing.content = content
         existing.updated_at = _now()
     else:
@@ -119,6 +120,9 @@ async def run_generation_pipeline(problem_id: uuid.UUID, job_id: uuid.UUID) -> N
         if not job or not problem:
             logger.error("Job or problem not found: job=%s problem=%s", job_id, problem_id)
             return
+        from app.services.ai import TrackedProvider
+        ai = TrackedProvider(ai, SessionLocal, problem.owner_id, problem.id, "generation",
+                             settings.AI_MAX_CALLS_PER_USER_PER_DAY)
 
         spec: dict = {}
         steps_log = []
@@ -162,7 +166,7 @@ async def run_generation_pipeline(problem_id: uuid.UUID, job_id: uuid.UUID) -> N
                 logger.info("Step %d/%d completed: %s", idx + 1, len(STEPS), step_name)
 
             except Exception as exc:
-                err_msg = str(exc)
+                err_msg = getattr(exc, "message", None) or f"{type(exc).__name__}: {str(exc)[:300]}"
                 logger.exception("Step %d failed (%s): %s", idx + 1, step_name, err_msg)
                 steps_log[-1] = _step_log_entry(idx, step_key, step_name, "failed", err_msg)
                 job.steps_log = list(steps_log)

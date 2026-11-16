@@ -2,12 +2,11 @@ import uuid
 from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 from app.models.problem import Problem
-from app.models.generation import GenerationJob
-from app.models.artifact import ProblemArtifact
 
 
-def test_generate_without_api_key(client: TestClient, db_session):
+def test_generate_without_api_key(client: TestClient, db_session, auth_user):
     problem = Problem(
+        owner_id=auth_user.id,
         title="Test Problem",
         slug=f"test-slug-{uuid.uuid4().hex[:6]}",
         idea="Test idea",
@@ -23,8 +22,9 @@ def test_generate_without_api_key(client: TestClient, db_session):
         assert "GEMINI_API_KEY" in response.json()["detail"]
 
 
-def test_generation_status_not_found(client: TestClient, db_session):
+def test_generation_status_not_found(client: TestClient, db_session, auth_user):
     problem = Problem(
+        owner_id=auth_user.id,
         title="Test Problem",
         slug=f"test-slug-{uuid.uuid4().hex[:6]}",
     )
@@ -36,8 +36,9 @@ def test_generation_status_not_found(client: TestClient, db_session):
     assert response.status_code == 404
 
 
-def test_generate_creates_job_and_returns_status(client: TestClient, db_session):
+def test_generate_creates_job_and_returns_status(client: TestClient, db_session, auth_user):
     problem = Problem(
+        owner_id=auth_user.id,
         title="Knapsack Problem",
         slug=f"knapsack-{uuid.uuid4().hex[:6]}",
         idea="Given items with weights and values, find max value.",
@@ -64,8 +65,9 @@ def test_generate_creates_job_and_returns_status(client: TestClient, db_session)
         assert status_data["total_steps"] == 7
 
 
-def test_regenerate_step_invalid_step(client: TestClient, db_session):
+def test_regenerate_step_invalid_step(client: TestClient, db_session, auth_user):
     problem = Problem(
+        owner_id=auth_user.id,
         title="Test Problem",
         slug=f"test-slug-{uuid.uuid4().hex[:6]}",
     )
@@ -80,3 +82,4 @@ def test_regenerate_step_invalid_step(client: TestClient, db_session):
             json={"step": "invalid_step_name"}
         )
         assert response.status_code == 422
+

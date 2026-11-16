@@ -3,7 +3,21 @@
  * Thin typed wrapper around the FastAPI backend REST API.
  */
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://127.0.0.1:8000/api/v1';
+// Same-origin by default ('/api/v1'): the dev server proxies to the backend and production serves
+// the SPA and API behind one reverse proxy, so session cookies stay first-party.
+const BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
+
+/** Read the CSRF cookie set at login (double-submit, verified server-side against the session). */
+export function csrfToken(): string {
+  const m = document.cookie.match(/(?:^|;\s*)pp_csrf=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : '';
+}
+
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
 
 // ─── Raw API response shapes (snake_case, matching FastAPI schemas) ───────────
 
@@ -86,23 +100,34 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const url = `${BASE_URL}${path}`;
-  const res = await fetch(url, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  });
+  const method = (options.method ?? 'GET').toUpperCase();
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      ...options,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(method !== 'GET' ? { 'X-CSRF-Token': csrfToken() } : {}),
+        ...options.headers,
+      },
+    });
+  } catch {
+    throw new ApiError('Cannot reach the PolyPilot server. Check your connection and try again.', 0);
+  }
+  if (res.status === 401 && !path.startsWith('/auth/')) {
+    window.dispatchEvent(new Event('pp:unauthorized'));
+  }
 
   if (!res.ok) {
     let detail = `HTTP ${res.status}`;
     try {
       const body = await res.json();
-      detail = body?.detail ?? detail;
+      detail = typeof body?.detail === 'string' ? body.detail : detail;
     } catch {
       // ignore parse errors
     }
-    throw new Error(detail);
+    throw new ApiError(detail, res.status);
   }
 
   // 204 No Content
@@ -213,7 +238,7 @@ export interface ApiHealth {
 
 export const healthApi = {
   check(): Promise<ApiHealth> {
-    return fetch(`${BASE_URL.replace('/api/v1', '')}/health`)
+    return fetch(`${BASE_URL.replace(/\/api\/v1$/, '')}/health`)
       .then(r => r.json()) as Promise<ApiHealth>;
   },
 };

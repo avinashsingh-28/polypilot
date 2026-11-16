@@ -243,21 +243,28 @@ export const ProblemWorkspacePage: React.FC<ProblemWorkspacePageProps> = ({
         title="Differential Verification Suite"
         subtitle="Phase 4 Execution Pipeline"
         footer={
-          <button onClick={() => setShowVerifyModal(false)} className="btn btn-secondary">
-            Close
-          </button>
+          <>
+            <button onClick={() => setShowVerifyModal(false)} className="btn btn-secondary">
+              Close
+            </button>
+            <button onClick={() => { setShowVerifyModal(false); setActiveTab('verification'); }} className="btn btn-primary">
+              Open Verification
+            </button>
+          </>
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--brand-primary)', fontWeight: 600 }}>
             <AlertCircle size={18} />
-            <span>Local C++ Execution Worker (Phase 4)</span>
+            <span>Sandboxed Execution Worker</span>
           </div>
           <p>
-            Deterministic verification will compile <code>solution.cpp</code>, <code>slow.cpp</code>, <code>validator.cpp</code>, and <code>gen_random.cpp</code> with <code>g++ -std=c++17 -O3</code>, run randomized stress tests, and feed counterexamples directly back into the automated repair loop.
+            Verification jobs are queued here and executed by a separate worker (<code>python -m app.worker</code>) inside an isolated Docker sandbox:
+            C++17 (<code>g++ -std=c++17 -O2</code>) and Python 3, no network, non-root, read-only filesystem, CPU/memory/process/output limits.
           </p>
           <div style={{ padding: '10px 12px', borderRadius: 'var(--radius-sm)', backgroundColor: 'var(--bg-surface-subtle)', fontSize: '12px' }}>
-            In Phase 1, you can inspect the verified execution telemetry and test cases in the <strong>Verification</strong> and <strong>Test Cases</strong> tabs.
+            Use the <strong>Test Cases</strong> tab to import samples, add or generate tests and run the validator, and the <strong>Verification</strong> tab for
+            reference, differential and stress testing, counterexamples and AI-assisted repair.
           </div>
         </div>
       </Modal>
