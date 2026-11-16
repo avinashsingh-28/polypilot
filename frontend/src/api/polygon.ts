@@ -156,6 +156,8 @@ export const polygonApi = {
 
   updateWorkingCopy: (pid: string, confirm_problem_id: string) =>
     request<Record<string, any>>(`${p(pid)}/working-copy/update`, post({ confirm_problem_id })),
+  discardWorkingCopy: (pid: string, confirm_problem_id: string, confirm_text: string) =>
+    request<Record<string, any>>(`${p(pid)}/working-copy/discard`, post({ confirm_problem_id, confirm_text })),
   commit: (pid: string, confirm_problem_id: string, message: string, minor_changes: boolean) =>
     request<Record<string, any>>(`${p(pid)}/commit`, post({ confirm_problem_id, message, minor_changes })),
   preflight: (pid: string) => request<BuildPreflight>(`${p(pid)}/build/preflight`),

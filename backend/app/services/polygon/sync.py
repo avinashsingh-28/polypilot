@@ -422,8 +422,13 @@ def _verify(remote_items: Remote, it: LocalItem) -> Tuple[Optional[bool], Option
         entry = next((e for e in listing if e.get("name") == it.remote_name), None)
         return norm(content) == norm(it.payload["file"]), _meta(entry)
     if it.type == "test":
-        raw = c.call("problem.testInput", {"problemId": pid, "testset": it.payload["testset"], "testIndex": it.remote_index})
-        text = raw.decode("utf-8", "replace") if isinstance(raw, (bytes, bytearray)) else None
+        # problem.tests (not problem.testInput): observed live, testInput fails with HTTP 400 until the
+        # problem has a main solution, while problem.tests returns manual test inputs.
+        tests = c.call("problem.tests", {"problemId": pid, "testset": it.payload["testset"]}) or []
+        t = next((x for x in tests if int(x.get("index", -1)) == int(it.remote_index or -1)), None)
+        text = _test_input(t) if t else None
+        if t is None:
+            return False, None
         return (None, None) if text is None else (norm(text) == norm(it.payload["testInput"]), {"input_sha": sha(norm(text))})
     return None, None
 

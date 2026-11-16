@@ -85,7 +85,7 @@ def local_problem(db_session, auth_user):
     for i, (typ, inp, st) in enumerate((("sample", "3\n1 2 3\n", "valid"), ("generated", "2\n5 -1\n", "valid"),
                                         ("generated", "1\n7\n", "invalid"), ("manual", "4\n1 1 1 1\n", "unchecked"))):
         db_session.add(TestCase(problem_id=p.id, test_type=typ, input_data=inp, validation_status=st,
-                                is_valid=st == "valid"))
+                                is_valid=st == "valid", generation_meta={"validated_by_sha": sha(VALIDATOR)}))
         db_session.flush()
     db_session.commit()
     return p
@@ -502,3 +502,29 @@ def test_failures_only_count_against_the_responsible_artifact(db_session, local_
     run("differential", "failed", ["output_mismatch"], offset=13)      # disagreement implicates both solutions
     v = Verification(db_session, local_problem.id)
     assert v.status(("differential",), "candidate", sha(BRUTE))["status"] == "failed"
+
+
+
+def test_tests_validated_by_an_older_validator_are_not_uploaded(db_session, local_problem):
+    """Regression (found live): after 'Regenerate All' the old tests stayed 'valid' and were uploaded,
+    although the new validator had never checked them."""
+    art = db_session.query(ProblemArtifact).filter_by(problem_id=local_problem.id, artifact_type="validator").one()
+    art.content += "\n// regenerated"
+    db_session.commit()
+    tests = [i for i in build_local_items(db_session, local_problem, {}) if i.type == "test"]
+    assert tests and all(i.blocked and "different validator version" in i.blocked for i in tests)
+
+
+def test_json_error_with_html_content_type_is_parsed(fake):
+    """Observed live: Polygon returned {"status":"FAILED","comment":...} as text/html with HTTP 400."""
+    import httpx as _h
+    body = '{"status":"FAILED","comment":"Unexpected error has been found: Cannot find model (main correct) solution"}'
+    t = _h.MockTransport(lambda req: _h.Response(400, headers={"content-type": "text/html;charset=UTF-8"}, text=body))
+    c = PolygonClient(Credentials(KEY, SECRET, "env"), transport=t, min_interval=0, sleep=lambda s: None, max_read_retries=0)
+    with pytest.raises(PolygonError) as e:
+        c.call("problem.testInput", {"problemId": 1, "testset": "tests", "testIndex": 1})
+    assert "main correct" in e.value.message
+
+
+def test_statement_dashes_sent_in_polygon_form():
+    assert md_to_polygon("a — b – c $x—y$") == "a --- b -- c $x—y$"

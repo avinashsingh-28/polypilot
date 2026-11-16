@@ -40,7 +40,7 @@ export const PolygonTab: React.FC<PolygonTabProps> = ({ problem }) => {
   const [tags, setTags] = useState<Record<string, string>>({});
   const [allowUnverified, setAllowUnverified] = useState<string[]>([]);
   const [overwrite, setOverwrite] = useState<string[]>([]);
-  const [modal, setModal] = useState<null | 'sync' | 'commit' | 'build' | 'create' | 'link'>(null);
+  const [modal, setModal] = useState<null | 'sync' | 'commit' | 'build' | 'create' | 'link' | 'discard'>(null);
   const [lastRun, setLastRun] = useState<SyncRun | null>(null);
   const [remoteInfo, setRemoteInfo] = useState<Record<string, any> | null>(null);
 
@@ -187,6 +187,11 @@ export const PolygonTab: React.FC<PolygonTabProps> = ({ problem }) => {
             <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy}
               onClick={() => act(() => polygonApi.updateWorkingCopy(pid, integ.external_problem_id!))}>Update outdated working copy</button>
           )}
+          {linked && (
+            <button className="btn btn-ghost" style={{ fontSize: 12, color: 'var(--danger-text)' }} disabled={busy}
+              title="Throw away all uncommitted changes in your Polygon working copy"
+              onClick={() => setModal('discard')}>Discard working copy…</button>
+          )}
         </div>
         <div style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span>Last commit: {integ?.last_commit ? `${integ.last_commit.committed ? 'committed' : 'not committed'} — revision ${integ.last_commit.revision_before} → ${integ.last_commit.revision_after} (${integ.last_commit.message ?? ''}) ${integ.last_commit.at ? fmt(integ.last_commit.at) : ''}` : '—'}</span>
@@ -224,6 +229,8 @@ export const PolygonTab: React.FC<PolygonTabProps> = ({ problem }) => {
       </Modal>
       <CommitModal open={modal === 'commit'} onClose={() => setModal(null)} busy={busy} integ={integ} problemTitle={problem.title}
         onCommit={(msg, minor) => act(() => polygonApi.commit(pid, integ!.external_problem_id!, msg, minor), () => setModal(null))} />
+      <DiscardModal open={modal === 'discard'} onClose={() => setModal(null)} busy={busy} integ={integ}
+        onDiscard={(text) => act(() => polygonApi.discardWorkingCopy(pid, integ!.external_problem_id!, text), () => setModal(null))} />
       <BuildModal open={modal === 'build'} onClose={() => setModal(null)} pid={pid} integ={integ} busy={busy}
         onBuild={(full, verify, ack) => act(() => polygonApi.build(pid, integ!.external_problem_id!, full, verify, ack), () => setModal(null))} />
     </div>
@@ -402,6 +409,21 @@ const BuildModal: React.FC<{ open: boolean; onClose: () => void; pid: string; in
         <label style={{ fontSize: 12 }}><input type="checkbox" checked={verify} onChange={(e) => setVerify(e.target.checked)} /> Verify (run all solutions on all tests)</label>
         <Field label={`Type the Polygon problem ID (${integ?.external_problem_id}) to confirm`}><input className="form-input" value={confirm} onChange={(e) => setConfirm(e.target.value)} /></Field>
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>An accepted request is not a successful build — check the package status afterwards.</span>
+      </div>
+    </Modal>
+  );
+};
+
+const DiscardModal: React.FC<{ open: boolean; onClose: () => void; busy: boolean; integ: any; onDiscard: (text: string) => void }> = ({ open, onClose, busy, integ, onDiscard }) => {
+  const [text, setText] = useState('');
+  return (
+    <Modal isOpen={open} onClose={onClose} title="Discard Polygon working copy" subtitle="problem.discardWorkingCopy — cannot be undone"
+      footer={<><button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+        <button className="btn btn-danger" disabled={busy || text !== 'DISCARD'} onClick={() => onDiscard(text)}>Discard uncommitted changes</button></>}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
+        <span>Problem <strong>{integ?.remote_name}</strong> (#{integ?.external_problem_id}) goes back to its last committed revision ({integ?.remote_revision ?? '?'}).</span>
+        <Notice kind="warning">All uncommitted changes in your Polygon working copy are lost — including anything uploaded by PolyPilot and any edits made in the Polygon web UI. Committed revisions are not affected.</Notice>
+        <Field label="Type DISCARD to confirm"><input className="form-input" value={text} onChange={(e) => setText(e.target.value)} /></Field>
       </div>
     </Modal>
   );

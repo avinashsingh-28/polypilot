@@ -137,6 +137,9 @@ def md_to_polygon(text: str) -> str:
         part = re.sub(r"\*\*(.+?)\*\*", r"\\textbf{\1}", part)
         part = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"\\textit{\1}", part)
         part = re.sub(r"`([^`\n]+)`", r"\\texttt{\1}", part)
+        # Polygon stores em/en dashes as LaTeX "---"/"--" (observed live); send that form so the
+        # read-back matches exactly.
+        part = part.replace("\u2014", "---").replace("\u2013", "--")
         out.append(part)
     return "".join(out).strip()
 
@@ -357,6 +360,8 @@ def build_local_items(db: Session, problem: Problem, scope: dict) -> List[LocalI
         tests = (db.query(TestCase).filter(TestCase.problem_id == problem.id).order_by(TestCase.created_at).all())
         order = {"sample": 0, "manual": 1, "upload": 1, "generated": 2}
         valid = [t for t in tests if t.validation_status == "valid" and t.test_type != "invalid"]
+        val_art = _art(db, problem, "validator")
+        current_validator = sha(strip_fences(val_art.content)[0]) if val_art else None
         for t in sorted(valid, key=lambda t: (order.get(t.test_type, 3), t.created_at)):
             inp = t.input_data
             it = LocalItem(f"test:{t.id}", "test", f"Test ({t.test_type}{', statement example' if t.test_type == 'sample' else ''})",
@@ -364,5 +369,9 @@ def build_local_items(db: Session, problem: Problem, scope: dict) -> List[LocalI
                            sha(norm(inp)), local_ref=str(t.id), verification={"status": "verified", "detail": "Accepted by Phase 4 validator"})
             if len(inp.encode()) > s.MAX_INPUT_BYTES:
                 it.blocked = "Test input too large"
+            elif current_validator is None or (t.generation_meta or {}).get("validated_by_sha") != current_validator:
+                it.verification = {"status": "unverified", "detail": "Accepted by a different (older) validator version"}
+                it.blocked = ("Validated by a different validator version (the validator changed since). "
+                              "Re-run 'Test validator' to re-check this test.")
             items.append(it)
     return items

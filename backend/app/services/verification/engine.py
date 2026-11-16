@@ -206,6 +206,7 @@ def mutate(base: str) -> Dict[str, str]:
 
 def run_validator(ctx: RunContext) -> Tuple[str, str]:
     val = ctx.compile_artifact("validator", "validator")
+    validator_sha = ctx.report["compilations"]["validator"]["source_sha256"]
     tests = ctx.db.query(TestCase).filter_by(problem_id=ctx.problem.id).order_by(TestCase.created_at).all()
     cases = []  # (label, input, expect_valid, test_case or None)
     for tc in tests:
@@ -240,6 +241,8 @@ def run_validator(ctx: RunContext) -> Tuple[str, str]:
                 tc.validation_status = {"accepted": "valid", "rejected": "invalid"}.get(verdict, "error")
                 tc.is_valid = verdict == "accepted"
                 tc.validation_feedback = diag or ("OK" if accepted else f"exit {r.exit_code}")
+                # Bind the verdict to this exact validator source (Polygon upload requires a match).
+                tc.generation_meta = {**(tc.generation_meta or {}), "validated_by_sha": validator_sha}
         ctx.progress(iterations_done=len(results), iterations_total=len(cases))
 
     ctx.report["validator"] = {"cases": results,
@@ -304,7 +307,8 @@ def run_generate(ctx: RunContext) -> Tuple[str, str]:
                           generator_cmd=cmd[:255], input_bytes=len(inp.encode()),
                           generation_meta={"seed": sd, "gen_type": gtype, "args": args,
                                            "generator_artifact_id": str(gen_art.id), "generator_version": gen_art.version,
-                                           "validator_artifact_id": str(val_art.id), "run_id": str(ctx.run.id)})
+                                           "validator_artifact_id": str(val_art.id), "run_id": str(ctx.run.id),
+                                           "validated_by_sha": ctx.report["compilations"]["val"]["source_sha256"]})
             ctx.db.add(tc)
             ctx.db.flush()
             saved.append({"seed": sd, "test_case_id": str(tc.id), "bytes": tc.input_bytes})

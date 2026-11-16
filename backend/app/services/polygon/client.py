@@ -247,7 +247,10 @@ class PolygonClient:
     def _parse(self, method: str, resp: httpx.Response, write: bool) -> Any:
         ctype = resp.headers.get("content-type", "")
         body = None
-        if "json" in ctype or (method not in RAW_METHODS and resp.content[:1] == b"{"):
+        looks_json = resp.content[:1] == b"{"
+        # Polygon sometimes returns its JSON {status, comment} with a text/html content type
+        # (observed live on problem.testInput errors), so sniff the body as well.
+        if "json" in ctype or (looks_json and (method not in RAW_METHODS or resp.status_code >= 400)):
             try:
                 body = resp.json()
             except ValueError:
