@@ -49,7 +49,7 @@ the steps in *Before private production*. **Public multi-user use is blocked** (
 | Backup → restore into a new database | all table counts matched |
 | Load test (20 concurrent, single API process on WSL2) | `/health` 712 req/s · `/health/ready` 209 req/s · authenticated list 97 req/s (p95 340 ms) · 0 errors |
 | Dev path (Vite proxy → API) | login, CSRF write, logout verified with curl |
-| Live Polygon | read-only connection test only; **no live writes** |
+| Live Polygon (problem 631924, user-approved) | **create → upload (statement, validator, built-in checker, generator, MA/TO solutions, 14 validated tests; all verified by read-back) → commit (rev 4) → build: Polygon reported READY** (package 1569896, “created … with verification”) |
 | Live AI | not exercised in Phase 6 |
 | GitHub Actions | written + YAML-validated; **not run on GitHub** |
 | Browser UI | build passes; **not manually exercised in a browser** |
@@ -66,8 +66,8 @@ the steps in *Before private production*. **Public multi-user use is blocked** (
 | 7–9 | Compile, generate + validate tests, run reference | Passed (real sandbox) |
 | 10–11 | Differential testing; wrong (WA) and slow (TLE) solutions | Passed |
 | 12 | Counterexample captured and minimized | Passed (`8 numbers` → `1\n-1\n`, every reduction validator-checked) |
-| 13–14 | Review package, sync to Polygon | Passed against **mock** Polygon; live: **blocked** (needs your approval and a throwaway problem) |
-| 15–17 | Commit, build, verify real result | Passed against **mock** Polygon; live: **blocked** |
+| 13–14 | Review package, sync to Polygon | Passed (mock) and **passed live** on problem 631924 |
+| 15–17 | Commit, build, verify real result | Passed (mock) and **passed live**: Polygon package READY |
 
 ## Checklist
 
@@ -82,7 +82,7 @@ the steps in *Before private production*. **Public multi-user use is blocked** (
 | Code execution | Complete | C++17 / Python 3, verdicts, limits |
 | Sandbox security | Incomplete | All container restrictions tested. **gVisor/VM isolation not installed — blocks public use** |
 | Worker reliability | Complete | States, heartbeat, crash recovery, cancellation, bounded queues, safe infra retry, idempotency keys |
-| Polygon integration | Incomplete | Mock-tested end to end. Live writes blocked pending your approval |
+| Polygon integration | Complete | Mock-tested and exercised live end to end (package built and verified by Polygon). Six live-only issues found and fixed (see git log) |
 | Automated testing | Incomplete | Suites exist and pass locally; CI not yet run on GitHub; no formatter check (not enforced, to avoid a mass reformat) |
 | Deployment | Incomplete | Images, compose and docs ready and tested locally; no real VM/TLS yet (nothing purchased) |
 | Monitoring | Complete | JSON logs, request IDs, health endpoints, metrics. Alerting: choose with the host |

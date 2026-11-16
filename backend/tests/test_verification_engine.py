@@ -152,3 +152,13 @@ def test_missing_artifact_is_reported(db_session, problem):
     db_session.commit()
     run = _run(db_session, problem, "differential", {"iterations": 5})
     assert run.status == "failed" and "brute_force" in run.summary
+
+
+def test_oversized_generator_output_is_skipped_not_a_generator_failure(db_session, problem, monkeypatch):
+    """Regression (found live): an n=200000 edge test larger than MAX_INPUT_BYTES failed the whole
+    generate run and blocked the (correct) generator from Polygon upload."""
+    monkeypatch.setattr(get_settings(), "MAX_INPUT_BYTES", 30)     # edge tests here are ~40 bytes
+    run = _run(db_session, problem, "generate", {"count": 2, "seed": 7, "gen_type": "edge"})
+    assert run.status == "passed" or not run.report["generator"]["saved"], run.summary
+    assert run.report["generator"]["failures"] == []
+    assert len(run.report["generator"]["oversized"]) >= 1 and "too large" in run.summary

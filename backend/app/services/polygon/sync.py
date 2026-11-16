@@ -567,15 +567,18 @@ def build_preflight(db, problem, integ, client) -> dict:
         r = (db.query(VerificationRun).filter_by(problem_id=problem.id, test_type=t)
              .order_by(VerificationRun.created_at.desc()).first())
         phase4[t] = r.status if r else "not_run"
-    states = db.query(PolygonItemState).filter_by(integration_id=integ.id).all()
+    # Ask the real question with a fresh read-only plan: does Polygon match the local package now?
+    # (Stored per-item records can be stale, e.g. an early failed upload that was later fixed.)
+    fresh = plan(db, problem, integ, {}, client)
+    bad = [i["key"] for i in fresh["items"] if i["action"] != "unchanged"]
     problems = [f"Polygon readiness: {i.get('message') or i.get('type')}" for i in readiness]
     problems += [f"Hard caution: {c.get('message') or c.get('type')}" for c in hard]
     problems += [f"Phase 4 {t} is {s}" for t, s in phase4.items() if s != "passed"]
     if p.get("modified"):
         problems.append("The working copy has uncommitted changes; packages are built from committed revisions")
-    bad = [s.item_key for s in states if s.status in ("failed", "unknown", "pending")]
     if bad:
-        problems.append(f"{len(bad)} items have failed/unknown sync status")
+        problems.append(f"{len(bad)} items differ from Polygon or are blocked (run a dry run): {', '.join(bad[:4])}"
+                        + ("…" if len(bad) > 4 else ""))
     return {"remote_problem": p, "readiness_issues": readiness, "hard_cautions": hard, "phase4": phase4,
             "items_not_confirmed": bad, "issues": problems, "ready": not problems}
 

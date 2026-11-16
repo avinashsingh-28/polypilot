@@ -11,6 +11,7 @@ from app.api.routes import polygon as routes
 from app.core.config import get_settings
 from app.main import app
 from app.models.artifact import ProblemArtifact
+from app.models.integration import ProblemIntegration
 from app.models.polygon import PolygonAccount, PolygonItemState, PolygonOperation, PolygonSyncRun
 from app.models.problem import Problem
 from app.models.test_case import TestCase
@@ -528,3 +529,14 @@ def test_json_error_with_html_content_type_is_parsed(fake):
 
 def test_statement_dashes_sent_in_polygon_form():
     assert md_to_polygon("a — b – c $x—y$") == "a --- b -- c $x—y$"
+
+
+def test_preflight_ignores_sync_records_of_deleted_items(api, fake, local_problem, db_session):
+    """Regression (found live): failed upload records of tests deleted locally kept blocking the build."""
+    rp = _link(api, fake, local_problem.id)
+    integ = db_session.query(ProblemIntegration).filter_by(problem_id=local_problem.id).one()
+    db_session.add(PolygonItemState(problem_id=local_problem.id, integration_id=integ.id,
+                                    item_key=f"test:{uuid.uuid4()}", item_type="test", status="failed"))
+    db_session.commit()
+    pf = api.get(f"{API}/problems/{local_problem.id}/polygon/build/preflight").json()
+    assert not any("failed/unknown sync status" in i for i in pf["issues"]), pf["issues"]

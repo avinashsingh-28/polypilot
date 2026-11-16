@@ -272,7 +272,10 @@ def get_test_case(problem_id: uuid.UUID, tc_id: uuid.UUID, db: Session = Depends
 
 @router.delete("/problems/{problem_id}/test-cases/{tc_id}", status_code=204)
 def delete_test_case(problem_id: uuid.UUID, tc_id: uuid.UUID, db: Session = Depends(get_db)):
+    from app.models.polygon import PolygonItemState
     db.delete(_scoped(db, TestCase, tc_id, problem_id, "Test case"))
+    # Forget local sync tracking for this test (the remote Polygon test is never deleted automatically).
+    db.query(PolygonItemState).filter_by(problem_id=problem_id, item_key=f"test:{tc_id}").delete()
     db.commit()
 
 

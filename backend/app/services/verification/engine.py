@@ -272,7 +272,7 @@ def run_generate(ctx: RunContext) -> Tuple[str, str]:
     count, seed0, gtype, args = cfg["count"], cfg["seed"], cfg["gen_type"], cfg["extra_args"]
     existing = {hashlib.sha256(t.input_data.encode()).hexdigest()
                 for t in ctx.db.query(TestCase.input_data).filter_by(problem_id=ctx.problem.id)}
-    saved, invalid, failures, dupes = [], [], [], 0
+    saved, invalid, failures, oversized, dupes = [], [], [], [], 0
     for start in range(0, count, BATCH):
         if not ctx.time_left():
             ctx.log("Time budget exhausted")
@@ -286,10 +286,13 @@ def run_generate(ctx: RunContext) -> Tuple[str, str]:
         for sd in seeds:
             g, v = res[f"g{sd}"], res[f"v{sd}"]
             cmd = " ".join(["gen", gtype, str(sd), *args])
+            if g.output_exceeded and g.exit_code in (None, 0) and not g.timed_out and not g.memory_exceeded:
+                # Larger than PolyPilot's storage limit: a PolyPilot limit, not a generator bug.
+                oversized.append({"seed": sd, "cmd": cmd,
+                                  "detail": f"output larger than MAX_INPUT_BYTES ({ctx.settings.MAX_INPUT_BYTES} bytes); not stored"})
+                continue
             if not g.clean_exit:
                 why = classify(g, 10.0, 512).error_details
-                if g.output_exceeded:
-                    why = f"generator output exceeds the {ctx.settings.MAX_INPUT_BYTES}-byte stored input limit"
                 failures.append({"seed": sd, "cmd": cmd, "error": why, "stderr": _decode(g.stderr)[:500]})
                 continue
             inp = _decode(g.stdout)
@@ -314,10 +317,13 @@ def run_generate(ctx: RunContext) -> Tuple[str, str]:
             saved.append({"seed": sd, "test_case_id": str(tc.id), "bytes": tc.input_bytes})
         ctx.progress(iterations_done=min(count, start + BATCH), iterations_total=count, current_seed=seeds[-1])
 
-    ctx.report["generator"] = {"saved": saved, "invalid": invalid, "failures": failures, "duplicates": dupes,
+    ctx.report["generator"] = {"saved": saved, "invalid": invalid, "failures": failures, "oversized": oversized,
+                               "duplicates": dupes,
                                "requested": count, "gen_type": gtype, "seed": seed0, "extra_args": args}
-    summary = f"{len(saved)} valid tests saved, {len(invalid)} rejected by validator, {len(failures)} generator failures, {dupes} duplicates"
-    return ("failed" if invalid or failures or not saved else "passed"), summary
+    summary = (f"{len(saved)} valid tests saved, {len(invalid)} rejected by validator, {len(failures)} generator failures, "
+               f"{dupes} duplicates" + (f", {len(oversized)} skipped as too large to store" if oversized else ""))
+    # Duplicates and oversized outputs are not failures; producing nothing usable at all is.
+    return ("failed" if invalid or failures or not (saved or dupes) else "passed"), summary
 
 
 # ─────────────────────────────────────────────────────────────────────────────
