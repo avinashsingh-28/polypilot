@@ -294,6 +294,19 @@ def build_local_items(db: Session, problem: Problem, scope: dict) -> List[LocalI
         items.append(LocalItem(f"assign:{role}", "assign", f"Set as problem {role}", {role: name}, sha(name),
                                remote_name=name, verification=v, blocked=f.blocked, depends_on=[role]))
 
+    # Polygon cannot build a package without a checker. With no custom checker artifact, upload
+    # PolyPilot's built-in token checker (same comparison rule as local verification).
+    if "checker" in include and not any(i.key == "checker" for i in items):
+        from app.services.polygon.builtin_checker import BUILTIN_CHECKER_NAME, BUILTIN_CHECKER_SOURCE
+        v = {"status": "verified", "detail": "PolyPilot built-in exact-token checker (same rule as local "
+                                             "verification); behaviour covered by the sandbox test suite"}
+        items.append(LocalItem("checker", "file", "Checker source (PolyPilot built-in token checker)",
+                               {"name": BUILTIN_CHECKER_NAME, "file": BUILTIN_CHECKER_SOURCE, "type": "source"},
+                               sha(BUILTIN_CHECKER_SOURCE), remote_name=BUILTIN_CHECKER_NAME, verification=v))
+        items.append(LocalItem("assign:checker", "assign", "Set as problem checker", {"checker": BUILTIN_CHECKER_NAME},
+                               sha(BUILTIN_CHECKER_NAME), remote_name=BUILTIN_CHECKER_NAME, verification=v,
+                               depends_on=["checker"]))
+
     if "generators" in include:
         art = _art(db, problem, "generator")
         if art:

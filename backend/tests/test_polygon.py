@@ -233,7 +233,9 @@ def test_local_items_gating(db_session, local_problem):
     items = {i.key: i for i in build_local_items(db_session, local_problem, {})}
     assert items["info"].payload["timeLimit"] == 1000 and items["info"].blocked is None
     assert items["validator"].blocked is None and items["assign:validator"].payload == {"validator": "validator.cpp"}
-    assert "checker" not in items                      # no checker artifact → Polygon default left intact
+    # no custom checker artifact → PolyPilot's built-in token checker is uploaded and set (Polygon requires one)
+    assert items["checker"].remote_name == "checker.cpp" and "registerTestlibCmd" in items["checker"].payload["file"]
+    assert items["assign:checker"].payload == {"checker": "checker.cpp"} and items["checker"].blocked is None
     tests = [i for i in items.values() if i.type == "test"]
     assert len(tests) == 2                             # only validator-accepted tests
     assert tests[0].payload["testUseInStatements"] is True     # sample first, used in statement
@@ -334,7 +336,7 @@ def test_dry_run_then_sync_then_idempotent(api, fake, local_problem, db_session)
     run = api.get(f"{API}/problems/{pid}/polygon/runs/{r.json()['id']}").json()
     assert run["status"] == "completed", run["summary"]
     remote = fake.problems[rp["id"]]
-    assert remote["validator"] == "validator.cpp" and set(remote["files"]) == {"validator.cpp", "gen.cpp"}
+    assert remote["validator"] == "validator.cpp" and set(remote["files"]) == {"validator.cpp", "gen.cpp", "checker.cpp"} and remote["checker"] == "checker.cpp"
     assert remote["solutions"]["main.cpp"]["tag"] == "MA" and remote["info"]["timeLimit"] == 1000
     assert remote["tests"][1]["input"] == "3\n1 2 3\n" and remote["tests"][1]["stmt"] is True
     assert "\\textbf{their sum}" in remote["statements"]["english"]["legend"]

@@ -204,3 +204,30 @@ def test_no_host_side_effects():
     marker = os.path.join(os.path.expanduser("~"), "polypilot_sandbox_escape_marker")
     run(py(f"open({marker!r}, 'w').write('x')"))
     assert not os.path.exists(marker)
+
+
+# ── PolyPilot built-in Polygon checker ───────────────────────────────────────
+@pytest.mark.parametrize("output,answer,verdict", [
+    ("6\n", "6", R.ACCEPTED),
+    ("1   2\n3\n\n", "1 2 3", R.ACCEPTED),          # whitespace-insensitive, like local verification
+    ("1000001", "1000000", R.WRONG_ANSWER),         # integers compared exactly
+    ("1 2", "1 2 3", R.WRONG_ANSWER),               # missing token
+    ("1 2 3 4", "1 2 3", R.WRONG_ANSWER),           # extra token
+    ("YES", "yes", R.WRONG_ANSWER),                 # case-sensitive
+])
+def test_builtin_checker_matches_local_token_rule(output, answer, verdict):
+    from app.services.polygon.builtin_checker import BUILTIN_CHECKER_SOURCE
+    from app.services.sandbox import Bundle, Step, apply_checker, classify
+    from app.services.sandbox.comparator import TokenComparator
+    chk = cpp(BUILTIN_CHECKER_SOURCE)
+    cat = py("import sys\nsys.stdout.write(sys.stdin.read())")
+    b = Bundle().add("prog", cat).add("checker", chk)
+    steps = [Step("r", b.cmd("prog"), time_limit=2, memory_mb=128, output_limit=1 << 16, stdin=output.encode()),
+             Step("k", b.cmd("checker", "input.txt", "output.txt", "answer.txt"), time_limit=5, memory_mb=256,
+                  output_limit=1 << 16, write={"input.txt": b"x\n", "output.txt": {"from": "r"}, "answer.txt": answer.encode()},
+                  requires=["r"])]
+    r, k = get_sandbox().execute(b.files, steps, b.exec)
+    res = apply_checker(classify(r, 2, 128), k)
+    assert res.status == verdict, (res.status, res.error_details)
+    # identical decision to the local comparator
+    assert (res.status == R.ACCEPTED) == TokenComparator().compare(output, answer).matched

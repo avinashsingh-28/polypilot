@@ -74,6 +74,7 @@ export const PolygonTab: React.FC<PolygonTabProps> = ({ problem }) => {
   const toggle = (list: string[], v: string) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
   const items = (dryRun?.plan ?? plan)?.items ?? [];
   const changes = items.filter((i) => i.action === 'create' || i.action === 'update');
+  const uploadedCount = (ov?.item_states ?? []).filter((s) => s.status === 'uploaded').length;
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -168,9 +169,20 @@ export const PolygonTab: React.FC<PolygonTabProps> = ({ problem }) => {
 
       {/* E. Commit & build */}
       <Section title="Commit & package build" icon={<GitCommit size={16} style={{ color: 'var(--brand-primary)' }} />}>
+        {linked && uploadedCount === 0 && (
+          <Notice kind="warning">
+            Nothing has been uploaded to this Polygon problem yet. Do these in order: <strong>Dry run</strong> → <strong>Upload</strong> (above) → <strong>Commit</strong> → <strong>Build package</strong>.
+            A build of an empty problem is refused by Polygon.
+          </Notice>
+        )}
+        {linked && uploadedCount > 0 && integ?.remote_modified && (
+          <Notice>Uploaded changes are in your working copy but not committed yet. Commit before building — packages are built from committed revisions.</Notice>
+        )}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button className="btn btn-primary" style={{ fontSize: 12 }} disabled={busy || !linked} onClick={() => setModal('commit')}><GitCommit size={13} /> Commit working copy…</button>
-          <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy || !linked} onClick={() => setModal('build')}><Package size={13} /> Build package…</button>
+          <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy || !linked || uploadedCount === 0}
+            title={uploadedCount === 0 ? 'Upload the package first (Dry run → Upload)' : undefined}
+            onClick={() => setModal('build')}><Package size={13} /> Build package…</button>
           {linked && integ?.working_copy_revision != null && integ.remote_revision != null && integ.working_copy_revision < integ.remote_revision && (
             <button className="btn btn-secondary" style={{ fontSize: 12 }} disabled={busy}
               onClick={() => act(() => polygonApi.updateWorkingCopy(pid, integ.external_problem_id!))}>Update outdated working copy</button>
