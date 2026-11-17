@@ -15,7 +15,7 @@ export const EditorialTab: React.FC<EditorialTabProps> = ({ problem }) => {
         <BookOpen size={32} style={{ margin: '0 auto 12px auto' }} />
         <h3 style={{ fontSize: '15px', color: 'var(--text-primary)', fontWeight: 600 }}>Editorial Not Generated</h3>
         <p style={{ fontSize: '13px', marginTop: '4px' }}>
-          Editorial formulation will be activated in Phase 3.
+          No editorial yet. Use Generate with AI (top right) to draft one.
         </p>
       </div>
     );

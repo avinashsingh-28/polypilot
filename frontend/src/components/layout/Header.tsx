@@ -56,13 +56,17 @@ export const Header: React.FC<HeaderProps> = ({
     <header
       style={{
         height: 'var(--header-height)',
-        backgroundColor: 'var(--bg-surface)',
+        backgroundColor: 'color-mix(in srgb, var(--bg-surface) 82%, transparent)',
+        backdropFilter: 'saturate(1.6) blur(10px)',
+        WebkitBackdropFilter: 'saturate(1.6) blur(10px)',
         borderBottom: '1px solid var(--border-subtle)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        padding: '0 24px',
-        flexShrink: 0
+        padding: '0 28px',
+        flexShrink: 0,
+        position: 'relative',
+        zIndex: 10
       }}
     >
       {/* Breadcrumb Title */}

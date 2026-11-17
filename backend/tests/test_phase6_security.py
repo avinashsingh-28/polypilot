@@ -362,3 +362,77 @@ def test_validator_prompt_uses_real_testlib_api():
     with open("sandbox/testlib.h", encoding="utf-8", errors="replace") as f:
         testlib = f.read()
     assert "void registerValidation(int argc" in testlib and "void registerGen(int argc" in testlib
+
+
+# ── Forgot / reset password ──────────────────────────────────────────────────
+@pytest.fixture
+def sent_links(monkeypatch):
+    links = []
+    monkeypatch.setattr("app.services.email.send_password_reset", lambda email, link, ttl: links.append((email, link)))
+    return links
+
+
+def _token(link):
+    return link.split("reset_token=")[1]
+
+
+def test_forgot_password_is_generic_and_sends_link(anon_client, sent_links, db_session):
+    from app.models.user import PasswordResetToken
+    anon_client.post(f"{API}/auth/register", json={"email": TEST_EMAIL, "password": TEST_PASSWORD})
+    a = anon_client.post(f"{API}/auth/forgot-password", json={"email": TEST_EMAIL})
+    b = anon_client.post(f"{API}/auth/forgot-password", json={"email": "nobody@example.com"})
+    assert a.status_code == b.status_code == 202 and a.json() == b.json()
+    assert len(sent_links) == 1 and sent_links[0][0] == TEST_EMAIL and "?reset_token=" in sent_links[0][1]
+    token = _token(sent_links[0][1])
+    rows = db_session.query(PasswordResetToken).all()
+    assert len(rows) == 1 and rows[0].token_hash != token and token not in rows[0].token_hash   # hash only
+
+
+def test_reset_password_flow_revokes_sessions_and_is_single_use(anon_client, sent_links, db_session):
+    login_client(anon_client)
+    old_cookie = anon_client.cookies.get("pp_session")
+    anon_client.post(f"{API}/auth/forgot-password", json={"email": TEST_EMAIL})
+    token = _token(sent_links[-1][1])
+    assert anon_client.post(f"{API}/auth/reset-password", json={"token": token, "password": "short"}).status_code == 422
+    new_pw = "brand-new-passphrase-42"
+    r = anon_client.post(f"{API}/auth/reset-password", json={"token": token, "password": new_pw})
+    assert r.status_code == 200
+    # old session revoked; old password rejected; new password works; link cannot be reused
+    anon_client.cookies.set("pp_session", old_cookie)
+    assert anon_client.get(f"{API}/auth/me").status_code == 401
+    assert anon_client.post(f"{API}/auth/login", json={"email": TEST_EMAIL, "password": TEST_PASSWORD}).status_code == 401
+    assert anon_client.post(f"{API}/auth/login", json={"email": TEST_EMAIL, "password": new_pw}).status_code == 200
+    again = anon_client.post(f"{API}/auth/reset-password", json={"token": token, "password": "another-passphrase-9"})
+    assert again.status_code == 400 and "invalid or has expired" in again.json()["detail"]
+
+
+def test_reset_link_expires_and_new_request_invalidates_old(anon_client, sent_links, db_session):
+    from app.models.user import PasswordResetToken
+    anon_client.post(f"{API}/auth/register", json={"email": TEST_EMAIL, "password": TEST_PASSWORD})
+    anon_client.post(f"{API}/auth/forgot-password", json={"email": TEST_EMAIL})
+    first = _token(sent_links[-1][1])
+    anon_client.post(f"{API}/auth/forgot-password", json={"email": TEST_EMAIL})
+    second = _token(sent_links[-1][1])
+    assert anon_client.post(f"{API}/auth/reset-password", json={"token": first, "password": "valid-passphrase-77"}).status_code == 400
+    for row in db_session.query(PasswordResetToken).filter(PasswordResetToken.used_at.is_(None)).all():
+        row.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+    db_session.commit()
+    assert anon_client.post(f"{API}/auth/reset-password", json={"token": second, "password": "valid-passphrase-77"}).status_code == 400
+    assert anon_client.post(f"{API}/auth/reset-password", json={"token": "x" * 43, "password": "valid-passphrase-77"}).status_code == 400
+
+
+def test_forgot_password_per_email_limit(anon_client, sent_links):
+    anon_client.post(f"{API}/auth/register", json={"email": TEST_EMAIL, "password": TEST_PASSWORD})
+    for _ in range(5):
+        assert anon_client.post(f"{API}/auth/forgot-password", json={"email": TEST_EMAIL}).status_code == 202
+    assert len(sent_links) == 3        # silently capped at 3 per hour; response stays identical
+
+
+def test_verification_history_is_scoped_to_the_user(client, db_session):
+    pid = client.post(f"{API}/problems", json={"title": "Mine"}).json()["id"]
+    client.post(f"{API}/problems/{pid}/verification-runs", json={"test_type": "validator"})
+    h = client.get(f"{API}/verification-runs").json()
+    assert h["total"] == 1 and h["items"][0]["problem_title"] == "Mine" and h["items"][0]["test_type"] == "validator"
+    with TestClient(app) as m:
+        login_client(m, "mallory@example.com", "another-strong-pass-7")
+        assert m.get(f"{API}/verification-runs").json()["total"] == 0

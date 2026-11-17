@@ -19,7 +19,7 @@ export const StatementTab: React.FC<StatementTabProps> = ({ problem }) => {
         <FileText size={32} style={{ margin: '0 auto 12px auto' }} />
         <h3 style={{ fontSize: '15px', color: 'var(--text-primary)', fontWeight: 600 }}>Statement Not Generated</h3>
         <p style={{ fontSize: '13px', marginTop: '4px' }}>
-          This problem does not have a generated statement yet. Statement generation will be activated in Phase 3.
+          This problem does not have a statement yet. Use Generate with AI to draft one.
         </p>
       </div>
     );

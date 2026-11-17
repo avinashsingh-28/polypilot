@@ -48,6 +48,7 @@ Copy `deploy/.env.prod.example`. The required and important variables:
 | `REGISTRATION_OPEN` | `false` for private deployments; create accounts with the CLI |
 | `METRICS_TOKEN` | Bearer token for `/metrics` (internal scraping only) |
 | `GEMINI_API_KEY`, `AI_MODEL`, `AI_MAX_CALLS_PER_USER_PER_DAY` | AI provider |
+| `PUBLIC_APP_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Forgot-password emails (any SMTP provider). Without SMTP, production cannot send reset links |
 | `POLYGON_CREDENTIALS_KEY` | Fernet key for per-user Polygon credentials saved in the UI |
 | `POLYGON_API_KEY`, `POLYGON_API_SECRET`, `POLYGON_ENV_CREDENTIALS_EMAIL` | Optional shared env credentials, usable only by that one user |
 | `SANDBOX_MAX_CONCURRENT`, `MAX_*` | Execution limits (server maxima) |

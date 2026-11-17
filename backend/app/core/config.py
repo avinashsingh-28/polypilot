@@ -100,6 +100,16 @@ class Settings(BaseSettings):
     COOKIE_SECURE: bool = False                # must be true in production (HTTPS)
     COOKIE_SAMESITE: str = "lax"
     REGISTRATION_OPEN: bool = True
+    # Password reset (forgot password). Without SMTP_HOST, development prints the reset link to the
+    # backend log; production cannot send resets until SMTP is configured.
+    PUBLIC_APP_URL: str = "http://localhost:5173"
+    PASSWORD_RESET_TTL_MIN: int = 30
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    SMTP_STARTTLS: bool = True
     AUTH_RATE_LIMIT_PER_MIN: int = 10          # per client IP, auth endpoints
     AUTH_MAX_FAILURES_PER_EMAIL: int = 5       # per 15 minutes
     MAX_REQUEST_BYTES: int = 8 * 1024 * 1024

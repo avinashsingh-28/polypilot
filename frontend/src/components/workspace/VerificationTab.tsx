@@ -284,7 +284,7 @@ const Comparison: React.FC<{ pid: string; mode: 'differential' | 'stress'; artif
     <Section title={mode === 'differential' ? 'Differential testing: reference vs brute force' : 'Stress testing: reference vs candidate'}
       icon={mode === 'differential' ? <GitCompare size={15} style={{ color: 'var(--brand-primary)' }} /> : <Zap size={15} style={{ color: 'var(--brand-primary)' }} />}>
       {mode === 'differential' && !hasBrute && (
-        <Notice kind="warning">Differential testing is disabled: this problem has no brute-force solution artifact. Generate one (Phase 3) or paste a slow-but-obviously-correct solution below.</Notice>
+        <Notice kind="warning">Differential testing is disabled: this problem has no brute-force solution artifact. Generate one with AI or paste a slow-but-obviously-correct solution below.</Notice>
       )}
       <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         <SourcePicker label="Reference solution" artifacts={artifacts} value={ref} onChange={setRef} />

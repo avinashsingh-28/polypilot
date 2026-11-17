@@ -16,7 +16,7 @@ export const ValidatorTab: React.FC<ValidatorTabProps> = ({ problem }) => {
         <ShieldCheck size={32} style={{ margin: '0 auto 12px auto' }} />
         <h3 style={{ fontSize: '15px', color: 'var(--text-primary)', fontWeight: 600 }}>Validator Not Generated</h3>
         <p style={{ fontSize: '13px', marginTop: '4px' }}>
-          Testlib validator synthesis will be activated in Phase 3.
+          No validator yet. Use Generate with AI to draft a testlib validator.
         </p>
       </div>
     );

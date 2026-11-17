@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import { verificationApi } from '../../api/verification';
+import { polygonApi } from '../../api/polygon';
 import { 
   Clock, 
   Cpu, 
@@ -20,6 +22,19 @@ interface OverviewTabProps {
 }
 
 export const OverviewTab: React.FC<OverviewTabProps> = ({ problem, onNavigateTab }) => {
+  // Real lifecycle state from the backend (verification runs + Polygon integration).
+  const [verified, setVerified] = useState(false);
+  const [polygonState, setPolygonState] = useState<'none' | 'linked' | 'built'>('none');
+  useEffect(() => {
+    verificationApi.summary(problem.id).then((s) => {
+      const l = s.latest_by_type;
+      setVerified(['validator', 'reference', 'differential'].every((t) => l[t as keyof typeof l]?.status === 'passed'));
+    }).catch(() => setVerified(false));
+    polygonApi.overview(problem.id).then((o) => {
+      const i = o.integration;
+      setPolygonState(i?.last_build?.state === 'built' ? 'built' : i?.external_problem_id ? 'linked' : 'none');
+    }).catch(() => setPolygonState('none'));
+  }, [problem.id]);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
       {/* Top Spec Card */}
@@ -129,7 +144,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ problem, onNavigateTab
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
               Formal constraints, bounds, proof sketch, and ambiguity resolution.
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 'auto' }}>Phase 3 Module</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 'auto' }}>AI pipeline</span>
           </div>
 
           {/* Step 2 */}
@@ -158,7 +173,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ problem, onNavigateTab
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
               LaTeX statement, editorial, reference solution, testlib validator & generators.
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 'auto' }}>Phase 3 Module</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 'auto' }}>AI pipeline</span>
           </div>
 
           {/* Step 3 */}
@@ -175,7 +190,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ problem, onNavigateTab
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--brand-primary)' }}>STEP 3</span>
-              {problem.verification?.status === 'passed' ? (
+              {verified ? (
                 <CheckCircle2 size={16} style={{ color: 'var(--success-text)' }} />
               ) : (
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Pending</span>
@@ -187,7 +202,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ problem, onNavigateTab
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
               g++ C++17 compilation, differential stress tests, counterexample repair loop.
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 'auto' }}>Phase 4 Engine</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 'auto' }}>Verification tab</span>
           </div>
 
           {/* Step 4 */}
@@ -204,7 +219,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ problem, onNavigateTab
           >
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--brand-primary)' }}>STEP 4</span>
-              {problem.polygon?.linked ? (
+              {polygonState === 'built' ? (
                 <CheckCircle2 size={16} style={{ color: 'var(--info-text)' }} />
               ) : (
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Pending</span>
@@ -216,7 +231,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({ problem, onNavigateTab
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
               SHA-512 API upload, commit revision, package build & caution audit.
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 'auto' }}>Phase 5 Integration</span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: 'auto' }}>{polygonState === 'linked' ? 'Linked · not built yet' : 'Polygon tab'}</span>
           </div>
         </div>
       </div>

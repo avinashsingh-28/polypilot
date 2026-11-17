@@ -108,7 +108,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => onNavigate(item.id)}
-              className="btn"
+              className="btn nav-item"
+              data-active={isActive}
+              aria-current={isActive ? 'page' : undefined}
               style={{
                 width: '100%',
                 justifyContent: isCollapsed ? 'center' : 'flex-start',

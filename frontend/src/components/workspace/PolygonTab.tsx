@@ -247,7 +247,7 @@ const PlanView: React.FC<{ plan: SyncPlan; dry: boolean; allowUnverified: string
     <div style={{ overflowX: 'auto' }}>
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
         <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)', borderBottom: '1px solid var(--border-subtle)' }}>
-          <th style={{ padding: 6 }}>Item</th><th style={{ padding: 6 }}>Remote</th><th style={{ padding: 6 }}>Phase 4</th>
+          <th style={{ padding: 6 }}>Item</th><th style={{ padding: 6 }}>Remote</th><th style={{ padding: 6 }}>Verified</th>
           <th style={{ padding: 6 }}>Sync state</th><th style={{ padding: 6 }}>Action</th><th style={{ padding: 6 }}>Reason</th>
         </tr></thead>
         <tbody>

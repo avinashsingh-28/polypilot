@@ -50,7 +50,13 @@ Docker alone does not protect against kernel exploits.
   identical for unknown email and wrong password (a dummy hash keeps timing equal).
 - Rate limits: 10 auth requests per minute per IP, and 5 failed logins per account per 15 minutes.
   These limits are in memory and per process **[gap: not shared across replicas]**.
-- Not implemented: password reset, email verification, MFA. Use `REGISTRATION_OPEN=false` and
+- Password reset: `/auth/forgot-password` always returns the same response (no account enumeration),
+  is rate limited (per IP, and max 3 emails per address per hour), and issues a single-use token that
+  expires after 30 minutes; only its SHA-256 is stored. A new request invalidates older links. A
+  successful reset revokes every session. The link token is removed from the browser address bar on
+  load. Delivery uses SMTP; without SMTP, development logs the link and production sends nothing.
+  **[tested]**
+- Not implemented: email verification, MFA. Use `REGISTRATION_OPEN=false` and
   `python -m app.cli create-user` to control who has accounts.
 
 ## Authorization [tested]

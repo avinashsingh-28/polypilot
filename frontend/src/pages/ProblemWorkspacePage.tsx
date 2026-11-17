@@ -241,7 +241,7 @@ export const ProblemWorkspacePage: React.FC<ProblemWorkspacePageProps> = ({
         isOpen={showVerifyModal}
         onClose={() => setShowVerifyModal(false)}
         title="Differential Verification Suite"
-        subtitle="Phase 4 Execution Pipeline"
+        subtitle="Sandboxed verification"
         footer={
           <>
             <button onClick={() => setShowVerifyModal(false)} className="btn btn-secondary">

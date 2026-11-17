@@ -29,6 +29,7 @@ export const Badge: React.FC<BadgeProps> = ({
   } else if (status) {
     label = status.toUpperCase();
     if (status === 'verified' || status === 'published') finalVariant = 'success';
+    else if (status === 'generated') finalVariant = 'primary';
     else if (status === 'verifying' || status === 'generating') finalVariant = 'warning';
     else if (status === 'failed') finalVariant = 'danger';
     else finalVariant = 'default';

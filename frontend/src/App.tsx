@@ -81,8 +81,6 @@ export const App: React.FC = () => {
             problems={problems}
             onNavigateNewProblem={() => setCurrentView('new-problem')}
             onOpenProblem={handleOpenProblem}
-            onToggleDemoData={() => {}}
-            hasDemoData={false}
           />
         );
       case 'new-problem':
@@ -134,8 +132,6 @@ export const App: React.FC = () => {
             problems={problems}
             onNavigateNewProblem={() => setCurrentView('new-problem')}
             onOpenProblem={handleOpenProblem}
-            onToggleDemoData={() => {}}
-            hasDemoData={false}
           />
         );
     }

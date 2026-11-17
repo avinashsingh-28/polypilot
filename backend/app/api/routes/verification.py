@@ -36,6 +36,8 @@ from app.db.session import get_db
 from app.models.artifact import ProblemArtifact
 from app.models.counterexample import Counterexample
 from app.models.problem import Problem
+from app.models.user import User
+from app.api.deps import require_user
 from app.models.solution_repair import SolutionRepair
 from app.models.test_case import TestCase
 from app.models.verification import VerificationRun
@@ -138,6 +140,25 @@ def _check_refs(db: Session, problem_id: uuid.UUID, cfg: dict) -> None:
                 _scoped(db, model, oid, problem_id, field)
     if cfg.get("counterexample_id"):
         _scoped(db, Counterexample, uuid.UUID(cfg["counterexample_id"]), problem_id, "Counterexample")
+
+
+@router.get("/verification-runs")
+def list_my_runs(limit: int = Query(50, ge=1, le=200), offset: int = Query(0, ge=0),
+                 test_type: Optional[str] = None, db: Session = Depends(get_db),
+                 user: User = Depends(require_user)):
+    """Verification history across all of the current user's problems (newest first)."""
+    q = (db.query(VerificationRun, Problem.title)
+         .join(Problem, Problem.id == VerificationRun.problem_id)
+         .filter(Problem.owner_id == user.id))
+    if test_type:
+        q = q.filter(VerificationRun.test_type == test_type)
+    total = q.count()
+    rows = q.order_by(VerificationRun.created_at.desc()).offset(offset).limit(limit).all()
+    return {"total": total, "items": [
+        {"id": r.id, "problem_id": r.problem_id, "problem_title": title, "test_type": r.test_type, "status": r.status,
+         "summary": r.summary, "created_at": r.created_at, "started_at": r.started_at, "completed_at": r.completed_at,
+         "progress": r.progress}
+        for r, title in rows]}
 
 
 @router.get("/problems/{problem_id}/verification-runs", response_model=List[VerificationRunResponse])

@@ -76,7 +76,7 @@ the steps in *Before private production*. **Public multi-user use is blocked** (
 | Frontend | Incomplete | Auth gate, real data, honest errors, lazy loading done. Missing: artifact editing/saving UI, per-step regenerate button, screenshots, manual browser/responsive pass |
 | Backend | Complete | Hardened; 116 tests |
 | PostgreSQL | Complete | Pooling, timeouts, indexes, migrations, backup/restore tested. Legacy problems still need claiming |
-| Authentication | Incomplete | Core complete; password reset, email verification, MFA not implemented |
+| Authentication | Incomplete | Core complete, including password reset (needs SMTP in production); email verification and MFA not implemented |
 | Authorization | Complete | Central ownership checks; IDOR suite |
 | AI integration | Incomplete | Hardened and mock-tested; not exercised live in Phase 6; checker generation missing |
 | Code execution | Complete | C++17 / Python 3, verdicts, limits |

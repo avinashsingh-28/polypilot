@@ -17,7 +17,7 @@ export const GeneratorsTab: React.FC<GeneratorsTabProps> = ({ problem }) => {
         <Cpu size={32} style={{ margin: '0 auto 12px auto' }} />
         <h3 style={{ fontSize: '15px', color: 'var(--text-primary)', fontWeight: 600 }}>No Generators Created</h3>
         <p style={{ fontSize: '13px', marginTop: '4px' }}>
-          Testlib generator code and invocation scripts will be generated in Phase 3.
+          No generator yet. Use Generate with AI to draft a testlib generator.
         </p>
       </div>
     );

@@ -1,5 +1,10 @@
 # PolyPilot user guide
 
+## 0. Account
+Register, then sign in. Forgot your password? Click **Forgot password?** on the sign-in page. A reset
+link is emailed to you; it works once and expires after 30 minutes. In local development without an
+email server, the link appears in the backend console. Resetting signs you out everywhere.
+
 ## 1. Create a problem
 **Create Problem** → enter the title, idea, intended algorithm, constraints, input/output formats and
 limits → save. The draft is stored on the server, and only you can see it.

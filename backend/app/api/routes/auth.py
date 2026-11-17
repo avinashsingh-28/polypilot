@@ -7,11 +7,14 @@ POST /auth/login      generic error for unknown email / wrong password; rate lim
 POST /auth/logout     revokes the server-side session and clears cookies.
 GET  /auth/me         current user (401 if not logged in).
 GET  /auth/csrf       re-issues the CSRF cookie for the current session.
+POST /auth/forgot-password  always the same response; emails a single-use reset link if the account exists.
+POST /auth/reset-password   sets a new password with a valid link; signs out every session.
 """
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -21,7 +24,7 @@ from app.core.config import get_settings
 from app.core.security import (csrf_for, hash_password, limiter, needs_rehash, new_session_token, normalize_email,
                                validate_email, validate_password, verify_password)
 from app.db.session import get_db
-from app.models.user import User, UserSession
+from app.models.user import PasswordResetToken, User, UserSession
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 log = logging.getLogger("polypilot.auth")
@@ -141,3 +144,77 @@ def csrf(request: Request, response: Response, db: Session = Depends(get_db)):
                         samesite=s.COOKIE_SAMESITE.lower(), path="/",
                         max_age=s.SESSION_ABSOLUTE_TIMEOUT_DAYS * 86400)
     return {"ok": True}
+
+
+# ── Forgot / reset password ──────────────────────────────────────────────────
+GENERIC_FORGOT = ("If an account exists for this email, a password reset link has been sent. "
+                  "It expires in {ttl} minutes.")
+INVALID_LINK = "This reset link is invalid or has expired. Request a new one."
+
+
+class ForgotIn(BaseModel):
+    email: str = Field(..., max_length=254)
+
+
+class ResetIn(BaseModel):
+    token: str = Field(..., min_length=20, max_length=200)
+    password: str = Field(..., max_length=128)
+
+
+@router.post("/forgot-password", status_code=202)
+def forgot_password(body: ForgotIn, request: Request, background: BackgroundTasks, db: Session = Depends(get_db)):
+    """Same response, status and (roughly) timing whether or not the account exists."""
+    from app.core.security import hash_token
+    from app.services.email import send_password_reset
+    s = get_settings()
+    _rate_limit(request, "forgot")
+    email = normalize_email(body.email)
+    message = {"message": GENERIC_FORGOT.format(ttl=s.PASSWORD_RESET_TTL_MIN)}
+    if validate_email(email):
+        return message
+    # At most 3 reset emails per address per hour (silently ignored beyond that).
+    if not limiter.hit(f"forgot:email:{email}", 3, 3600):
+        return message
+    user = db.query(User).filter_by(email=email).first()
+    if user is None or not user.is_active:
+        return message
+    now = datetime.now(timezone.utc)
+    db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user.id,
+                                        PasswordResetToken.used_at.is_(None)).update({"used_at": now})
+    token = secrets.token_urlsafe(32)
+    db.add(PasswordResetToken(user_id=user.id, token_hash=hash_token(token), created_at=now,
+                              expires_at=now + timedelta(minutes=s.PASSWORD_RESET_TTL_MIN)))
+    db.commit()
+    link = f"{s.PUBLIC_APP_URL.rstrip('/')}/?reset_token={token}"
+    background.add_task(send_password_reset, user.email, link, s.PASSWORD_RESET_TTL_MIN)  # sent after the response
+    log.info("password reset requested")
+    return message
+
+
+@router.post("/reset-password")
+def reset_password(body: ResetIn, request: Request, response: Response, db: Session = Depends(get_db)):
+    from app.core.security import hash_token
+    _rate_limit(request, "reset")
+    now = datetime.now(timezone.utc)
+    rec = db.query(PasswordResetToken).filter_by(token_hash=hash_token(body.token)).first()
+    if rec is None or rec.used_at is not None:
+        raise HTTPException(400, INVALID_LINK)
+    expires = rec.expires_at if rec.expires_at.tzinfo else rec.expires_at.replace(tzinfo=timezone.utc)
+    if expires <= now:
+        raise HTTPException(400, INVALID_LINK)
+    user = db.get(User, rec.user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(400, INVALID_LINK)
+    err = validate_password(body.password, user.email)
+    if err:
+        raise HTTPException(422, err)
+    user.password_hash = hash_password(body.password)
+    rec.used_at = now
+    # Every existing session is signed out (e.g. an attacker who knew the old password).
+    db.query(UserSession).filter(UserSession.user_id == user.id, UserSession.revoked_at.is_(None)).update(
+        {"revoked_at": now})
+    limiter.reset(f"login-fail:{user.email}")
+    db.commit()
+    _clear_cookies(response)
+    log.info("password reset completed")
+    return {"message": "Your password has been changed. Sign in with your new password."}

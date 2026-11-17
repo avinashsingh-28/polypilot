@@ -21,6 +21,13 @@ export const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const [user, setUser] = useState<AuthUser | null>(null);
   const [checking, setChecking] = useState(true);
   const [expired, setExpired] = useState(false);
+  // A password-reset link opens the app with ?reset_token=…; read it once, then strip it from the
+  // address bar so the secret does not stay in history or leak via the Referer header.
+  const [resetToken, setResetToken] = useState<string | null>(() => {
+    const t = new URLSearchParams(window.location.search).get('reset_token');
+    if (t) window.history.replaceState(null, '', window.location.pathname);
+    return t;
+  });
 
   const check = useCallback(async () => {
     try {
@@ -43,11 +50,13 @@ export const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) 
     try { await apiClient('/auth/logout', { method: 'POST' }); } finally { setUser(null); setExpired(false); }
   }, []);
 
-  if (checking) {
+  if (checking && !resetToken) {
     return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }} role="status">Checking session…</div>;
   }
-  if (!user) {
-    return <LoginPage expired={expired} onSignedIn={(u) => { setUser(u); setExpired(false); }} />;
+  if (!user || resetToken) {
+    return <LoginPage expired={expired} resetToken={resetToken}
+      onResetDone={() => { setResetToken(null); setUser(null); }}   // all sessions were revoked by the reset
+      onSignedIn={(u) => { setUser(u); setExpired(false); }} />;
   }
   return <Ctx.Provider value={{ user, logout }}>{children}</Ctx.Provider>;
 };

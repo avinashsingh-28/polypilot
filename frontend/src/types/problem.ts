@@ -8,6 +8,7 @@ export type ProblemDifficulty =
 export type ProblemStatus = 
   | 'draft'
   | 'generating'
+  | 'generated'
   | 'verifying'
   | 'verified'
   | 'published'

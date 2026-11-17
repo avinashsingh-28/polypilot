@@ -72,11 +72,11 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
           style={{
             flex: 1,
             overflowY: 'auto',
-            padding: '24px',
-            backgroundColor: 'var(--bg-app)'
+            padding: '28px 28px 40px',
+            background: 'radial-gradient(1100px 380px at 50% -160px, var(--brand-primary-subtle), transparent 70%), var(--bg-app)'
           }}
         >
-          <div style={{ maxWidth: '1280px', margin: '0 auto', width: '100%' }}>
+          <div className="fade-up" key={currentView} style={{ maxWidth: '1280px', margin: '0 auto', width: '100%' }}>
             {children}
           </div>
         </main>

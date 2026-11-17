@@ -17,7 +17,7 @@ export const CheckerTab: React.FC<CheckerTabProps> = ({ problem }) => {
         <CheckSquare size={32} style={{ margin: '0 auto 12px auto' }} />
         <h3 style={{ fontSize: '15px', color: 'var(--text-primary)', fontWeight: 600 }}>Checker Not Configured</h3>
         <p style={{ fontSize: '13px', marginTop: '4px' }}>
-          Checker selection and synthesis will be configured in Phase 3.
+          No custom checker. Outputs are compared token by token, and PolyPilot uploads its built-in exact-token checker to Polygon.
         </p>
       </div>
     );

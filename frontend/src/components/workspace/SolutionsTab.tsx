@@ -37,7 +37,7 @@ export const SolutionsTab: React.FC<SolutionsTabProps> = ({ problem }) => {
         <Code2 size={32} style={{ margin: '0 auto 12px auto' }} />
         <h3 style={{ fontSize: '15px', color: 'var(--text-primary)', fontWeight: 600 }}>No Solutions Generated</h3>
         <p style={{ fontSize: '13px', marginTop: '4px' }}>
-          Solution synthesis (Reference, Brute-Force, WA candidate, TLE candidate) will be executed in Phase 3.
+          No solutions yet. Use Generate with AI to draft a reference and a brute-force solution.
         </p>
       </div>
     );
