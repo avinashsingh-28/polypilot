@@ -59,11 +59,11 @@ class GeminiProvider(AIProvider):
         if code == 404:
             # Google's message names the recommended replacement model; it contains no secrets.
             detail = str(getattr(exc, "message", "") or "").split(" We recommend")[0][:240]
-            return AIError("model_not_found", "AI model not found or not available for this API key — set AI_MODEL "
-                                              "in backend/.env to a current model." + (f" Provider says: {detail}" if detail else ""))
+            return AIError("model_not_found", "Gemini model not found or not available for this API key — choose "
+                                              "another model." + (f" Provider says: {detail}" if detail else ""))
         if isinstance(code, int) and code >= 500:
             return AIError("unavailable", f"AI provider is overloaded or temporarily unavailable (HTTP {code}). "
-                                          "Try again in a few minutes, or set AI_MODEL to another model.")
+                                          "Try again in a few minutes, or choose another model.")
         if isinstance(code, int) and 400 <= code < 500:
             return AIError("invalid_request", f"AI provider rejected the request ({code})")
         if "Timeout" in name or "Connect" in name or "Network" in name or isinstance(exc, (ConnectionError, OSError)):
@@ -96,6 +96,19 @@ class GeminiProvider(AIProvider):
 
     async def generate_text(self, prompt: str, *, temperature: float = 0.4) -> str:
         return await self._generate(prompt, temperature, json_mode=False)
+
+    async def list_models(self) -> list[str]:
+        """Models this key can use for text generation."""
+        try:
+            pager = await asyncio.wait_for(self._client.aio.models.list(config={"page_size": 100}), timeout=30)
+            names = []
+            async for m in pager:
+                actions = getattr(m, "supported_actions", None) or []
+                if not actions or "generateContent" in actions:
+                    names.append((getattr(m, "name", "") or "").removeprefix("models/"))
+        except Exception as exc:  # noqa: BLE001
+            raise self._classify(exc)
+        return sorted(n for n in names if n)
 
     async def generate_json(self, prompt: str, *, temperature: float = 0.2) -> Any:
         raw = _strip_fences(await self._generate(prompt, temperature, json_mode=True))

@@ -189,6 +189,12 @@ def cancel_run(problem_id: uuid.UUID, run_id: uuid.UUID, db: Session = Depends(g
     return run
 
 
+def _ai_ok(db: Session, problem_id) -> bool:
+    from app.services.ai import ai_available
+    p = db.get(Problem, problem_id)
+    return ai_available(db, p.owner_id if p else None, get_settings())
+
+
 @router.get("/problems/{problem_id}/verification/summary", response_model=VerificationSummary)
 def summary(problem_id: uuid.UUID, db: Session = Depends(get_db)):
     _problem(db, problem_id)
@@ -204,7 +210,7 @@ def summary(problem_id: uuid.UUID, db: Session = Depends(get_db)):
     counts["total"] = sum(counts.values())
     cx = db.query(func.count(Counterexample.id)).filter(Counterexample.problem_id == problem_id).scalar()
     return {"latest_by_type": latest, "active_runs": active, "test_case_counts": counts,
-            "counterexample_count": cx, "ai_configured": bool(get_settings().GEMINI_API_KEY)}
+            "counterexample_count": cx, "ai_configured": _ai_ok(db, problem_id)}
 
 
 # ── Test cases ────────────────────────────────────────────────────────────────
@@ -326,29 +332,27 @@ def list_repairs(problem_id: uuid.UUID, db: Session = Depends(get_db)):
 
 @router.post("/problems/{problem_id}/repairs", response_model=RepairResponse, status_code=201)
 async def create_repair(problem_id: uuid.UUID, body: RepairCreate, db: Session = Depends(get_db)):
-    from app.services.ai import get_ai_provider
+    from app.services.ai import resolve_provider
     from app.services.verification.repair import RepairError, propose_repair
 
     problem = _problem(db, problem_id)
     cx = _scoped(db, Counterexample, body.counterexample_id, problem_id, "Counterexample")
     settings = get_settings()
-    if not settings.GEMINI_API_KEY:
-        raise HTTPException(503, "No AI provider is configured (set GEMINI_API_KEY). "
-                                 "The counterexample and diagnostics are still available.")
     if body.source and len(body.source.encode()) > settings.MAX_SOURCE_BYTES:
         raise HTTPException(413, "Source too large")
     from app.services.ai import TrackedProvider
     from app.services.ai.base import AIError
     try:
-        ai = TrackedProvider(get_ai_provider(settings), lambda: db, problem.owner_id, problem.id, "repair",
-                             settings.AI_MAX_CALLS_PER_USER_PER_DAY)
+        inner, limit = resolve_provider(db, problem.owner_id, settings)
+        ai = TrackedProvider(inner, lambda: db, problem.owner_id, problem.id, "repair", limit)
         return await propose_repair(db, ai, problem, cx,
                                     str(body.artifact_id) if body.artifact_id else None,
                                     body.source, body.language)
     except RepairError as exc:
         raise HTTPException(422, str(exc))
     except AIError as exc:
-        raise HTTPException(429 if exc.kind in ("quota_exceeded", "rate_limited") else 502,
+        raise HTTPException(429 if exc.kind in ("quota_exceeded", "rate_limited")
+                            else 503 if exc.kind in ("missing_key", "configuration") else 502,
                             f"AI provider error [{exc.kind}]: {exc.message}")
 
 

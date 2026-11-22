@@ -5,7 +5,7 @@
 
 // Same-origin by default ('/api/v1'): the dev server proxies to the backend and production serves
 // the SPA and API behind one reverse proxy, so session cookies stay first-party.
-const BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
+export const BASE_URL = import.meta.env.VITE_API_URL ?? '/api/v1';
 
 /** Read the CSRF cookie set at login (double-submit, verified server-side against the session). */
 export function csrfToken(): string {

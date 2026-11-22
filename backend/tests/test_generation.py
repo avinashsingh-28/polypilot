@@ -17,9 +17,10 @@ def test_generate_without_api_key(client: TestClient, db_session, auth_user):
 
     with patch("app.api.routes.generation.get_settings") as mock_settings:
         mock_settings.return_value.GEMINI_API_KEY = ""
+        mock_settings.return_value.AI_PROVIDER = "gemini"
         response = client.post(f"/api/v1/problems/{problem.id}/generate")
         assert response.status_code == 503
-        assert "GEMINI_API_KEY" in response.json()["detail"]
+        assert "AI Providers page" in response.json()["detail"]
 
 
 def test_generation_status_not_found(client: TestClient, db_session, auth_user):
@@ -50,6 +51,7 @@ def test_generate_creates_job_and_returns_status(client: TestClient, db_session,
     with patch("app.api.routes.generation.get_settings") as mock_settings, \
          patch("app.api.routes.generation.run_generation_pipeline", new_callable=AsyncMock) as mock_pipeline:
         mock_settings.return_value.GEMINI_API_KEY = "dummy-test-key"
+        mock_settings.return_value.AI_PROVIDER = "gemini"
 
         response = client.post(f"/api/v1/problems/{problem.id}/generate")
         assert response.status_code == 202

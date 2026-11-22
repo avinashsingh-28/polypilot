@@ -1,6 +1,7 @@
 """AI provider factory + usage tracking.
 
-Only server-configured providers are supported (no user-supplied base URLs → no SSRF surface).
+Providers and their endpoints come from a server-side catalog; users may save their own API key
+for any of them, but never a URL (no SSRF surface).
 """
 import time
 import uuid
@@ -11,21 +12,68 @@ from sqlalchemy import func
 
 from app.services.ai.base import AIError, AIProvider
 
-SUPPORTED_PROVIDERS = ("gemini",)
+from app.services.ai.catalog import PROVIDERS, get_spec
+
+SUPPORTED_PROVIDERS = tuple(PROVIDERS)
+
+
+def build_provider(provider_id: str, api_key: str, model: str, settings, *, transport=None) -> AIProvider:
+    """Construct a provider from the server-side catalog (never from a user-supplied URL)."""
+    spec = get_spec(provider_id)
+    if spec is None:
+        raise AIError("invalid_request", f"Unsupported AI provider {provider_id!r}; supported: {', '.join(PROVIDERS)}")
+    common = dict(timeout_sec=settings.AI_TIMEOUT_SEC, max_retries=settings.AI_MAX_RETRIES,
+                  max_output_tokens=settings.AI_MAX_OUTPUT_TOKENS, max_prompt_chars=settings.AI_MAX_PROMPT_CHARS)
+    model = model or spec.default_model
+    if spec.kind == "gemini":
+        from app.services.ai.gemini import GeminiProvider
+        return GeminiProvider(api_key=api_key, model=model, **common)
+    if spec.kind == "anthropic":
+        from app.services.ai.anthropic_provider import AnthropicProvider
+        return AnthropicProvider(api_key=api_key, model=model, **common)
+    from app.services.ai.openai_compat import OpenAICompatProvider
+    return OpenAICompatProvider(spec, api_key, model, transport=transport, **common)
+
+
+def server_key(settings) -> str:
+    provider = (getattr(settings, "AI_PROVIDER", "gemini") or "gemini").lower()
+    return settings.GEMINI_API_KEY if provider == "gemini" else getattr(settings, "AI_API_KEY", "")
 
 
 def get_ai_provider(settings) -> AIProvider:
-    """Return configured AI provider based on settings."""
-    provider = getattr(settings, "AI_PROVIDER", "gemini").lower()
-    if provider == "gemini":
-        from app.services.ai.gemini import GeminiProvider
-        return GeminiProvider(
-            api_key=settings.GEMINI_API_KEY,
-            model=getattr(settings, "AI_MODEL", "gemini-3.5-flash"),
-            timeout_sec=settings.AI_TIMEOUT_SEC, max_retries=settings.AI_MAX_RETRIES,
-            max_output_tokens=settings.AI_MAX_OUTPUT_TOKENS, max_prompt_chars=settings.AI_MAX_PROMPT_CHARS,
-        )
-    raise AIError("invalid_request", f"Unsupported AI_PROVIDER {provider!r}; supported: {SUPPORTED_PROVIDERS}")
+    """The server's own provider (AI_PROVIDER + its key in backend/.env)."""
+    provider = (getattr(settings, "AI_PROVIDER", "gemini") or "gemini").lower()
+    key = server_key(settings)
+    if not key:
+        raise AIError("missing_key", "No AI provider configured. Add your own API key on the AI Providers page.")
+    return build_provider(provider, key, getattr(settings, "AI_MODEL", ""), settings)
+
+
+def ai_available(db, user_id, settings) -> bool:
+    """True if this user's AI calls have a provider: their selected own key, or the server's key."""
+    from app.models.user import AICredential, User
+    user = db.get(User, user_id) if user_id is not None else None
+    if user is not None and user.ai_provider and db.query(AICredential.id).filter_by(
+            user_id=user.id, provider=user.ai_provider).first() is not None:
+        return True
+    return bool(server_key(settings)) and get_spec(str(getattr(settings, "AI_PROVIDER", "") or "")) is not None
+
+
+NO_AI = "No AI provider is set up. Add your own API key on the AI Providers page (Gemini, Claude, OpenAI, …)."
+
+
+def resolve_provider(db, user_id, settings) -> tuple[AIProvider, int]:
+    """Provider for a user's AI calls, and the daily call limit that applies.
+
+    1. The provider the user selected, with their own saved key (no server limit: their quota).
+    2. Otherwise the server's provider, with the per-user daily limit.
+    """
+    from app.services.ai.credentials import load_user_provider
+    if user_id is not None:
+        own = load_user_provider(db, user_id, settings)
+        if own is not None:
+            return own, 0
+    return get_ai_provider(settings), settings.AI_MAX_CALLS_PER_USER_PER_DAY
 
 
 def calls_today(db, user_id) -> int:

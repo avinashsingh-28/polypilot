@@ -14,7 +14,7 @@ from app.models.generation import GenerationJob
 from app.models.problem import Problem
 from app.models.artifact import ProblemArtifact
 from app.services.ai.base import AIProvider
-from app.services.ai import get_ai_provider
+from app.services.ai import resolve_provider
 from app.services.generation.steps import (
     run_specification,
     run_statement,
@@ -101,18 +101,6 @@ async def run_generation_pipeline(problem_id: uuid.UUID, job_id: uuid.UUID) -> N
     Designed to be called with asyncio.create_task().
     """
     settings = get_settings()
-    try:
-        ai: AIProvider = get_ai_provider(settings)
-    except Exception as exc:
-        logger.error("Failed to initialise AI provider: %s", exc)
-        with SessionLocal() as db:
-            job = db.get(GenerationJob, job_id)
-            if job:
-                job.status = "failed"
-                job.error_message = f"AI provider init failed: {exc}"
-                job.completed_at = _now()
-                db.commit()
-        return
 
     with SessionLocal() as db:
         job = db.get(GenerationJob, job_id)
@@ -120,9 +108,18 @@ async def run_generation_pipeline(problem_id: uuid.UUID, job_id: uuid.UUID) -> N
         if not job or not problem:
             logger.error("Job or problem not found: job=%s problem=%s", job_id, problem_id)
             return
+        try:
+            # The owner's selected provider + own key, else the server's provider.
+            inner, daily_limit = resolve_provider(db, problem.owner_id, settings)
+        except Exception as exc:
+            logger.error("Failed to initialise AI provider: %s", type(exc).__name__)
+            job.status = "failed"
+            job.error_message = f"AI provider not available: {getattr(exc, 'message', None) or type(exc).__name__}"
+            job.completed_at = _now()
+            db.commit()
+            return
         from app.services.ai import TrackedProvider
-        ai = TrackedProvider(ai, SessionLocal, problem.owner_id, problem.id, "generation",
-                             settings.AI_MAX_CALLS_PER_USER_PER_DAY)
+        ai: AIProvider = TrackedProvider(inner, SessionLocal, problem.owner_id, problem.id, "generation", daily_limit)
 
         spec: dict = {}
         steps_log = []

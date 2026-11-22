@@ -1,0 +1,96 @@
+.aip {
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.aip header h1 { font-size: 20px; font-weight: 700; color: var(--text-primary); }
+.aip header p { font-size: 13px; color: var(--text-secondary); margin-top: 4px; max-width: 760px; line-height: 1.5; }
+.aip-muted { font-size: 12px; color: var(--text-secondary); }
+.aip-sm { font-size: 12px; padding: 6px 12px; }
+
+.aip-current {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 22px;
+  background: var(--brand-gradient-soft, var(--bg-surface));
+}
+.aip-current-icon {
+  width: 42px; height: 42px; border-radius: 12px; flex-shrink: 0;
+  display: grid; place-items: center;
+  background: var(--brand-gradient); color: #fff;
+  box-shadow: var(--shadow-brand);
+}
+.aip-current-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 220px; }
+.aip-current-body strong { font-size: 15px; color: var(--text-primary); overflow-wrap: anywhere; }
+.aip-eyebrow { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+
+.aip-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 14px;
+}
+.aip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.aip-card.is-active { border-color: var(--brand-primary); box-shadow: 0 0 0 1px var(--brand-primary), var(--shadow-brand); }
+.aip-card-head { display: flex; gap: 12px; align-items: flex-start; }
+.aip-logo {
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: grid; place-items: center;
+  font-weight: 700; font-size: 13px;
+  color: var(--brand-primary);
+  background: var(--bg-surface-subtle);
+  border: 1px solid var(--border-subtle);
+}
+.aip-card-title { flex: 1; min-width: 0; }
+.aip-card-title h3 { font-size: 14px; font-weight: 650; color: var(--text-primary); }
+.aip-card-title p { font-size: 12px; color: var(--text-secondary); margin-top: 2px; line-height: 1.4; }
+.aip-pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 999px;
+  background: var(--bg-surface-subtle); color: var(--text-secondary); border: 1px solid var(--border-subtle);
+  white-space: nowrap;
+}
+.aip-pill-active { background: var(--success-bg); color: var(--success-text); border-color: var(--success-border); }
+
+.aip-meta {
+  display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px;
+  font-size: 12px; margin: 0;
+}
+.aip-meta dt { color: var(--text-muted); }
+.aip-meta dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.aip-status { display: inline-flex; align-items: center; gap: 4px; }
+.aip-status-ok { color: var(--success-text); }
+.aip-status-bad { color: var(--danger-text); }
+.aip-status-untested { color: var(--text-muted); }
+
+.aip-editor {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 12px; border-radius: var(--radius-md);
+  background: var(--bg-surface-subtle); border: 1px solid var(--border-subtle);
+}
+.aip-editor .form-label { margin-top: 4px; }
+.aip-actions { display: flex; align-items: center; gap: 12px; margin-top: 6px; flex-wrap: wrap; }
+
+.aip-test { font-size: 12px; padding: 8px 10px; border-radius: 8px; line-height: 1.45; overflow-wrap: anywhere; }
+.aip-test.is-ok { background: var(--success-bg); color: var(--success-text); border: 1px solid var(--success-border); }
+.aip-test.is-bad { background: var(--danger-bg); color: var(--danger-text); border: 1px solid var(--danger-border); }
+
+.aip-card-foot { display: flex; align-items: center; gap: 8px; margin-top: auto; flex-wrap: wrap; }
+.aip-link { font-size: 12px; color: var(--brand-primary); display: inline-flex; align-items: center; gap: 3px; text-decoration: none; }
+.aip-link:hover { text-decoration: underline; }
+.aip-card-foot .aip-link { margin-left: auto; }
+.aip-danger { margin-left: auto; color: var(--danger-text); }
+.aip-foot { font-size: 12px; color: var(--text-muted); display: flex; gap: 6px; align-items: center; }
+
+@media (max-width: 640px) {
+  .aip-grid { grid-template-columns: 1fr; }
+  .aip-current { flex-wrap: wrap; }
+}

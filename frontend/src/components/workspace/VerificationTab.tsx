@@ -424,7 +424,7 @@ const Counterexamples: React.FC<{ pid: string; aiConfigured: boolean; artifacts:
 
         <Section title="AI-assisted repair" icon={<Sparkles size={15} style={{ color: 'var(--brand-primary)' }} />}>
           {!aiConfigured ? (
-            <Notice kind="warning">No AI provider configured (GEMINI_API_KEY). Diagnostics and the counterexample above remain available.</Notice>
+            <Notice kind="warning">No AI provider set up — add an API key on the AI Providers page. Diagnostics and the counterexample above remain available.</Notice>
           ) : (
             <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <Field label="Failing source" hint="Default: the candidate used by the run">

@@ -43,7 +43,12 @@ class Settings(BaseSettings):
     AI_MAX_RETRIES: int = 2                    # transient errors only (429/5xx/timeouts)
     AI_MAX_OUTPUT_TOKENS: int = 8192
     AI_MAX_PROMPT_CHARS: int = 60000
-    AI_MAX_CALLS_PER_USER_PER_DAY: int = 200
+    AI_MAX_CALLS_PER_USER_PER_DAY: int = 200   # applies to the server's key only, not users' own keys
+    # Server-wide key for a non-Gemini AI_PROVIDER (anthropic, openai, groq, ...). Optional.
+    AI_API_KEY: str = ""
+    # Fernet key that encrypts API keys users save in the UI. Falls back to POLYGON_CREDENTIALS_KEY;
+    # in development only, a key derived from AUTH_SECRET_KEY is used if neither is set.
+    AI_CREDENTIALS_KEY: str = ""
 
     # ── Phase 4: sandbox & verification limits (server-side maxima) ─────────
     SANDBOX_IMAGE: str = "polypilot-sandbox:latest"
@@ -110,6 +115,11 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM: str = ""
     SMTP_STARTTLS: bool = True
+    # Sign in with Google (OpenID Connect, authorization-code flow + PKCE). Disabled unless both are set.
+    # Redirect URI registered in Google Cloud must be: {PUBLIC_APP_URL}/api/v1/auth/google/callback
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    GOOGLE_REDIRECT_URI: str = ""              # optional override; default derived from PUBLIC_APP_URL
     AUTH_RATE_LIMIT_PER_MIN: int = 10          # per client IP, auth endpoints
     AUTH_MAX_FAILURES_PER_EMAIL: int = 5       # per 15 minutes
     MAX_REQUEST_BYTES: int = 8 * 1024 * 1024
@@ -143,6 +153,10 @@ class Settings(BaseSettings):
             errs.append("CORS_ORIGINS must be explicit https:// origins (no wildcard)")
         if self.COOKIE_SAMESITE.lower() not in ("lax", "strict"):
             errs.append("COOKIE_SAMESITE must be lax or strict")
+        if bool(self.GOOGLE_CLIENT_ID) != bool(self.GOOGLE_CLIENT_SECRET):
+            errs.append("Set both GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, or neither")
+        if self.GOOGLE_CLIENT_ID and not (self.GOOGLE_REDIRECT_URI or self.PUBLIC_APP_URL).startswith("https://"):
+            errs.append("Google sign-in in production needs an https:// PUBLIC_APP_URL")
         return errs
 
     @property

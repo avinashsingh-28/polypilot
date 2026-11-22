@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Uuid, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -22,7 +22,14 @@ class User(Base):
 
     id: Mapped[uuid.UUID] = _pk()
     email: Mapped[str] = mapped_column(String(254), unique=True, index=True, nullable=False)  # stored lowercase
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)                  # argon2id, never returned
+    # argon2id, never returned. NULL for accounts that only sign in with Google.
+    password_hash: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    # Google OpenID "sub" claim (stable account id). Unique when present.
+    google_sub: Mapped[Optional[str]] = mapped_column(String(255), unique=True, nullable=True)
+    # True once ownership of the email was proven (Google verified it, or a reset link was used).
+    email_verified: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
+    # The AI provider this user's generation runs on (an entry of their saved keys); NULL = server default.
+    ai_provider: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     created_at: Mapped[datetime] = _created()
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
@@ -87,3 +94,22 @@ class PasswordResetToken(Base):
     created_at: Mapped[datetime] = _created()
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AICredential(Base):
+    """A user's own API key for one AI provider. The key is Fernet-encrypted; never returned."""
+    __tablename__ = "ai_credentials"
+    __table_args__ = (UniqueConstraint("user_id", "provider", name="uq_ai_credentials_user_provider"),)
+
+    id: Mapped[uuid.UUID] = _pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"),
+                                               nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(30), nullable=False)
+    api_key_encrypted: Mapped[str] = mapped_column(Text, nullable=False)
+    key_hint: Mapped[str] = mapped_column(String(20), nullable=False)
+    model: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_at: Mapped[datetime] = _created()
+    updated_at: Mapped[datetime] = _created()
+    last_test_ok: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    last_tested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[Optional[str]] = mapped_column(String(300), nullable=True)

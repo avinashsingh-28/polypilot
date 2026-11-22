@@ -29,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
       case 'polygon':
         return <span>Polygon Integration</span>;
       case 'ai-providers':
-        return <span>AI Provider</span>;
+        return <span>AI Providers</span>;
       case 'settings':
         return <span>Settings</span>;
       case 'workspace':
@@ -94,6 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Quick Search Placeholder */}
         <div
+          className="hdr-hide-narrow"
           style={{
             position: 'relative',
             display: 'flex',
@@ -124,7 +125,7 @@ export const Header: React.FC<HeaderProps> = ({
           <button onClick={() => void logout()} className="btn btn-ghost" style={{ padding: '6px 10px', fontSize: '12px' }}
             title={`Signed in as ${user.email}`} aria-label="Sign out">
             <LogOut size={14} />
-            <span>Sign out</span>
+            <span className="hdr-hide-narrow">Sign out</span>
           </button>
         )}
 
@@ -136,7 +137,7 @@ export const Header: React.FC<HeaderProps> = ({
             style={{ padding: '6px 12px', fontSize: '13px' }}
           >
             <Plus size={15} />
-            <span>Create Problem</span>
+            <span className="hdr-hide-narrow">Create Problem</span>
           </button>
         )}
       </div>

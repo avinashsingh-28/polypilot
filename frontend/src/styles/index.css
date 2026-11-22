@@ -280,3 +280,8 @@ code {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Narrow screens: drop header extras so nothing overflows horizontally. */
+@media (max-width: 760px) {
+  .hdr-hide-narrow { display: none !important; }
+}

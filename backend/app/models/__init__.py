@@ -7,7 +7,7 @@ from app.models.generation import GenerationJob
 from app.models.test_case import TestCase
 from app.models.counterexample import Counterexample
 from app.models.solution_repair import SolutionRepair
-from app.models.user import User, UserSession, WorkerHeartbeat, AIUsage, PasswordResetToken
+from app.models.user import User, UserSession, WorkerHeartbeat, AIUsage, PasswordResetToken, AICredential
 from app.models.polygon import PolygonAccount, PolygonSyncRun, PolygonOperation, PolygonItemState
 
 __all__ = [
@@ -26,6 +26,7 @@ __all__ = [
     "WorkerHeartbeat",
     "AIUsage",
     "PasswordResetToken",
+    "AICredential",
     "PolygonSyncRun",
     "PolygonOperation",
     "PolygonItemState",

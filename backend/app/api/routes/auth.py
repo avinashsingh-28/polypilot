@@ -9,6 +9,9 @@ GET  /auth/me         current user (401 if not logged in).
 GET  /auth/csrf       re-issues the CSRF cookie for the current session.
 POST /auth/forgot-password  always the same response; emails a single-use reset link if the account exists.
 POST /auth/reset-password   sets a new password with a valid link; signs out every session.
+GET  /auth/providers        which external sign-in providers are configured.
+GET  /auth/google/start     redirects to Google (OpenID Connect + PKCE).
+GET  /auth/google/callback  Google redirects back here; signs in and redirects to the app.
 """
 import logging
 import secrets
@@ -103,6 +106,12 @@ def login(body: Credentials, request: Request, response: Response, db: Session =
     limiter.reset(fail_key)
     if needs_rehash(user.password_hash):
         user.password_hash = hash_password(body.password)
+    _start_session(db, user, request, response)
+    return {"user": _user_out(user)}
+
+
+def _start_session(db: Session, user: User, request: Request, response: Response) -> None:
+    s = get_settings()
     now = datetime.now(timezone.utc)
     token, token_hash = new_session_token()        # fresh token on every login (no fixation)
     db.add(UserSession(user_id=user.id, token_hash=token_hash, created_at=now, last_seen_at=now,
@@ -111,7 +120,103 @@ def login(body: Credentials, request: Request, response: Response, db: Session =
     user.last_login_at = now
     db.commit()
     _set_cookies(response, token, token_hash)
-    return {"user": _user_out(user)}
+
+
+# ── Sign in with Google ──────────────────────────────────────────────────────
+@router.get("/providers")
+def providers():
+    from app.services import google_oauth
+    return {"google": google_oauth.enabled()}
+
+
+def _flow_cookie_path() -> str:
+    return f"{get_settings().API_V1_PREFIX}/auth/google"
+
+
+@router.get("/google/start")
+def google_start(request: Request):
+    from fastapi.responses import RedirectResponse
+    from app.services import google_oauth
+    s = get_settings()
+    if not google_oauth.enabled():
+        raise HTTPException(404, "Google sign-in is not configured")
+    _rate_limit(request, "google")
+    url, cookie = google_oauth.new_flow()
+    resp = RedirectResponse(url, status_code=302)
+    resp.set_cookie(google_oauth.FLOW_COOKIE, cookie, max_age=google_oauth.FLOW_TTL_SEC, httponly=True,
+                    secure=s.COOKIE_SECURE, samesite="lax", path=_flow_cookie_path())
+    return resp
+
+
+@router.get("/google/callback")
+def google_callback(request: Request, db: Session = Depends(get_db), code: str | None = None,
+                    state: str | None = None, error: str | None = None):
+    """Google redirects here. Always ends with a redirect back to the app (errors as ?auth_error=)."""
+    from fastapi.responses import RedirectResponse
+    from app.services import google_oauth
+    from app.services.google_oauth import GoogleAuthError
+    s = get_settings()
+    if not google_oauth.enabled():
+        raise HTTPException(404, "Google sign-in is not configured")
+    app_url = s.PUBLIC_APP_URL.rstrip("/") + "/"
+
+    def done(err: str | None = None) -> RedirectResponse:
+        resp = RedirectResponse(app_url + (f"?auth_error={err}" if err else ""), status_code=302)
+        resp.delete_cookie(google_oauth.FLOW_COOKIE, path=_flow_cookie_path(), secure=s.COOKIE_SECURE,
+                           samesite="lax")
+        if err:
+            log.warning("google sign-in failed", extra={"reason": err, "client": _client_ip(request)})
+        return resp
+
+    _rate_limit(request, "google")
+    if error:
+        return done("google_denied")
+    try:
+        flow = google_oauth.read_flow(request.cookies.get(google_oauth.FLOW_COOKIE), state)
+        if not code or len(code) > 2048:
+            raise GoogleAuthError("google_failed")
+        claims = google_oauth.verify_id_token(google_oauth.exchange_code(code, flow["verifier"]), flow["nonce"])
+    except GoogleAuthError as e:
+        return done(e.code)
+
+    sub, email = str(claims["sub"]), normalize_email(claims["email"])
+    user = db.query(User).filter_by(google_sub=sub).first()
+    if user is None:
+        user = db.query(User).filter_by(email=email).first()
+        if user is not None and not user.is_active:
+            return done("account_disabled")
+        if user is not None and user.google_sub and user.google_sub != sub:
+            return done("google_conflict")            # email already linked to another Google account
+        if user is not None:
+            if not user.email_verified:
+                # Pre-hijacking defence: someone may have registered this address with a password
+                # before its real owner arrived. Google proves the owner, so the unproven password and
+                # every existing session are dropped. The owner can set a password via "Forgot password".
+                user.password_hash = None
+                db.query(UserSession).filter(UserSession.user_id == user.id,
+                                             UserSession.revoked_at.is_(None)).update(
+                    {"revoked_at": datetime.now(timezone.utc)})
+            user.google_sub = sub
+            user.email_verified = True
+            log.info("google identity linked to existing account")
+        else:
+            if not s.REGISTRATION_OPEN:
+                return done("registration_closed")
+            if validate_email(email):
+                return done("google_failed")
+            user = User(email=email, password_hash=None, google_sub=sub, email_verified=True)
+            db.add(user)
+            try:
+                db.flush()
+            except IntegrityError:
+                db.rollback()
+                return done("google_failed")
+            log.info("user registered via google")
+    if not user.is_active:
+        return done("account_disabled")
+    resp = done()
+    _start_session(db, user, request, resp)
+    return resp
 
 
 @router.post("/logout")
@@ -209,6 +314,7 @@ def reset_password(body: ResetIn, request: Request, response: Response, db: Sess
     if err:
         raise HTTPException(422, err)
     user.password_hash = hash_password(body.password)
+    user.email_verified = True                     # the link was delivered to this address
     rec.used_at = now
     # Every existing session is signed out (e.g. an attacker who knew the old password).
     db.query(UserSession).filter(UserSession.user_id == user.id, UserSession.revoked_at.is_(None)).update(

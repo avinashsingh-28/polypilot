@@ -31,7 +31,7 @@ function timeAgo(iso?: string): string {
 /** Live system status from the backend (nothing here is simulated). */
 function useSystemStatus() {
   const [worker, setWorker] = useState<{ ok: boolean; sandbox: boolean; busy: number; queued: number } | null>(null);
-  const [ai, setAi] = useState<{ configured: boolean; model: string; calls_last_24h: number; daily_limit: number } | null>(null);
+  const [ai, setAi] = useState<{ configured: boolean; model: string; label?: string; source?: string | null; calls_last_24h: number; daily_limit: number } | null>(null);
   const [polygon, setPolygon] = useState<PolygonStatus | null>(null);
   const [db, setDb] = useState<boolean | null>(null);
   useEffect(() => {
@@ -41,7 +41,7 @@ function useSystemStatus() {
       const d = await r.json();
       setWorker({ ok: r.ok && d.workers_alive > 0, sandbox: !!d.sandbox_available, busy: d.workers_busy ?? 0, queued: d.queued_runs ?? 0 });
     }).catch(() => setWorker({ ok: false, sandbox: false, busy: 0, queued: 0 }));
-    apiClient<{ configured: boolean; model: string; calls_last_24h: number; daily_limit: number }>('/ai/status').then(setAi).catch(() => setAi(null));
+    apiClient<{ configured: boolean; model: string; label?: string; source?: string | null; calls_last_24h: number; daily_limit: number }>('/ai/status').then(setAi).catch(() => setAi(null));
     polygonApi.status().then(setPolygon).catch(() => setPolygon(null));
   }, []);
   return { worker, ai, polygon, db };
@@ -76,7 +76,9 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({ problems, onNaviga
         : worker.busy ? `Running a job · ${worker.queued} queued` : 'Online · sandbox ready' },
     { label: 'AI provider', icon: <Bot size={15} />,
       level: !ai ? 'loading' : ai.configured ? 'ok' : 'warn',
-      detail: !ai ? 'Checking…' : ai.configured ? `${ai.model} · ${ai.calls_last_24h}/${ai.daily_limit} calls today` : 'No API key configured on the server' },
+      detail: !ai ? 'Checking…' : !ai.configured ? 'No API key yet — add one on the AI Providers page'
+        : ai.source === 'own' ? `${ai.label ?? ''} · ${ai.model} · your key · ${ai.calls_last_24h} calls today`
+        : `${ai.model} · ${ai.calls_last_24h}/${ai.daily_limit} calls today` },
     { label: 'Codeforces Polygon', icon: <Globe2 size={15} />,
       level: !polygon ? 'loading' : !polygon.configured ? 'warn' : polygon.last_test_ok === false ? 'error' : polygon.last_success_at ? 'ok' : 'warn',
       detail: !polygon ? 'Checking…' : !polygon.configured ? 'Not connected — add keys under Polygon Integration'

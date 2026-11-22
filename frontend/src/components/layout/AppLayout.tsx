@@ -17,7 +17,8 @@ export const AppLayout: React.FC<AppLayoutProps> = ({
   children,
   problemCount
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // Start collapsed (icons only) on narrow screens so the page keeps its width on phones.
+  const [isCollapsed, setIsCollapsed] = useState(() => typeof window !== 'undefined' && window.innerWidth < 900);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('polypilot-theme');
     return (saved as 'light' | 'dark') || 'light';

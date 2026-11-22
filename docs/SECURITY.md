@@ -56,7 +56,17 @@ Docker alone does not protect against kernel exploits.
   successful reset revokes every session. The link token is removed from the browser address bar on
   load. Delivery uses SMTP; without SMTP, development logs the link and production sends nothing.
   **[tested]**
-- Not implemented: email verification, MFA. Use `REGISTRATION_OPEN=false` and
+- Sign in with Google (OpenID Connect): server-side authorization-code flow with PKCE (S256), a
+  random `state` and `nonce` kept in a 10-minute HMAC-signed HttpOnly cookie scoped to
+  `/api/v1/auth/google`, and a client secret that never leaves the backend. The ID token is taken
+  directly from Google's token endpoint over TLS (OIDC Core 3.1.3.7); issuer, audience, expiry,
+  nonce and `email_verified` are checked. Accounts are matched by Google `sub`, then by email.
+  Pre-hijacking defence: linking Google to an existing account whose email was never proven drops
+  that account's password and revokes its sessions (the owner can set a new password through
+  Forgot password). An email already linked to a different Google account is refused. Production
+  refuses to start with Google enabled and a non-https `PUBLIC_APP_URL`. **[tested with a mocked
+  token endpoint]**
+- Not implemented: email verification for password sign-ups, MFA. Use `REGISTRATION_OPEN=false` and
   `python -m app.cli create-user` to control who has accounts.
 
 ## Authorization [tested]
@@ -111,9 +121,22 @@ Docker alone does not protect against kernel exploits.
   fields. No access or visibility changes are ever made.
 - Every request is recorded in `polygon_operations` without secrets or signatures.
 
-## AI provider [tested with mocks]
+## AI providers [tested with mocks; live key checks against every provider]
 
-- Only server-configured providers are supported; no user-supplied base URLs, so there is no SSRF.
+- 11 providers: Gemini (`google-genai`), Anthropic Claude (official `anthropic` SDK), and OpenAI,
+  DeepSeek, Groq, Mistral, xAI, OpenRouter, Together, Fireworks, Cerebras (Chat Completions over
+  httpx). Every endpoint is fixed in a server-side catalog; users can choose a provider, a model id
+  (validated against `^[A-Za-z0-9._:/@+-]{1,120}$`) and their own key, but never a URL, so there is
+  no SSRF.
+- Users' own API keys are encrypted with Fernet (`AI_CREDENTIALS_KEY`, else
+  `POLYGON_CREDENTIALS_KEY`; development only: derived from `AUTH_SECRET_KEY`). Production refuses to
+  save keys without an encryption key. Keys are never returned to the browser (only `…` + last 4
+  characters), never logged, and scrubbed from provider error messages. Keys are scoped to their
+  owner; other users get 404. Saving and testing are rate limited and CSRF-protected.
+- The Anthropic client is always given the user's key explicitly, so ambient credentials on the
+  server (environment variables, CLI profiles) are never used for a user's calls.
+- A user's own key is not subject to `AI_MAX_CALLS_PER_USER_PER_DAY` (they pay for it); the server
+  key is.
 - Each call has a timeout and an output-token cap; prompts are capped at `AI_MAX_PROMPT_CHARS`.
 - Only transient errors (429, 5xx, timeouts) are retried, at most twice. Errors are normalized
   into kinds.

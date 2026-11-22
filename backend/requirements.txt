@@ -9,6 +9,7 @@ alembic==1.20.1
 python-dotenv==1.2.4
 httpx==0.28.1
 google-genai==1.75.0
+anthropic==2.12.0
 tenacity==8.5.0
 cryptography==50.0.2
 argon2-cffi==25.1.0

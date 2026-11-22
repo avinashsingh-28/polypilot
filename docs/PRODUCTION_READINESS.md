@@ -37,22 +37,23 @@ the steps in *Before private production*. **Public multi-user use is blocked** (
 
 | Check | Result |
 |---|---|
-| Backend `pytest` (unit, API, security, Polygon mocks, real Docker sandbox incl. malicious programs) | **116 passed** |
+| Backend `pytest` (unit, API, security, Polygon mocks, real Docker sandbox incl. malicious programs) | **176 passed** |
 | Frontend `vitest` (API client: CSRF, credentials, 401 handling, honest errors) | **8 passed** |
 | `ruff` / `tsc -b` | clean / clean |
 | `pip-audit` / `npm audit` | 0 / 0 vulnerabilities |
 | Secret scan (152 committable files + git history) | no secrets; no `.env` ever committed |
-| Migrations up → downgrade base → up, fresh PostgreSQL 16 | passed (7 revisions) |
+| Migrations up → downgrade base → up, fresh PostgreSQL 16 | passed (10 revisions; 0009 and 0010 also downgraded/re-applied on the dev database) |
 | E2E evaluation (mock AI, mock Polygon, real sandbox + PostgreSQL) | **24 passed, 0 failed, 1 not implemented** (checker generation) |
 | Docker builds (api, worker, web, sandbox) | built; all run as non-root |
-| Production compose stack smoke test | health/ready/worker OK; Secure+HttpOnly cookie; CSRF; containerized worker compiled in the sandbox; metrics token; DB not published; docs off; logout revokes |
+| Production compose stack smoke test (re-run 2026-11-21 with migration 0009) | health/ready/worker OK; forgot-password generic; Google disabled when unconfigured; Secure+HttpOnly cookie; CSRF; containerized worker compiled in the sandbox; metrics token; DB not published; docs off; logout revokes |
 | Backup → restore into a new database | all table counts matched |
 | Load test (20 concurrent, single API process on WSL2) | `/health` 712 req/s · `/health/ready` 209 req/s · authenticated list 97 req/s (p95 340 ms) · 0 errors |
 | Dev path (Vite proxy → API) | login, CSRF write, logout verified with curl |
 | Live Polygon (problem 631924, user-approved) | **create → upload (statement, validator, built-in checker, generator, MA/TO solutions, 14 validated tests; all verified by read-back) → commit (rev 4) → build: Polygon reported READY** (package 1569896, “created … with verification”) |
-| Live AI | not exercised in Phase 6 |
+| Live AI | Gemini `gemini-3.5-flash` used for live generation during the Polygon run; model listing + JSON call re-checked 2026-11-22. Every other provider's endpoint verified live with a deliberately invalid key (each returns a clean auth error, key never echoed). **Successful calls to Claude, OpenAI and the other providers need real keys and have not been made** |
 | GitHub Actions | written + YAML-validated; **not run on GitHub** |
-| Browser UI | build passes; **not manually exercised in a browser** |
+| Browser UI | headless Chrome screenshots (desktop + mobile) of sign-in, reset, Google button/error, dashboard, workspace, history |
+| Sign in with Google | flow, PKCE, state/nonce and claim checks tested with a mocked token endpoint; redirect to Google verified live; **a full sign-in with a real Google OAuth client has not been done yet** |
 
 ## End-to-end workflow (requested steps)
 
@@ -74,9 +75,9 @@ the steps in *Before private production*. **Public multi-user use is blocked** (
 | Area | Status | Notes |
 |---|---|---|
 | Frontend | Incomplete | Auth gate, real data, honest errors, lazy loading done. Missing: artifact editing/saving UI, per-step regenerate button, screenshots, manual browser/responsive pass |
-| Backend | Complete | Hardened; 116 tests |
+| Backend | Complete | Hardened; 176 tests |
 | PostgreSQL | Complete | Pooling, timeouts, indexes, migrations, backup/restore tested. Legacy problems still need claiming |
-| Authentication | Incomplete | Core complete, including password reset (needs SMTP in production); email verification and MFA not implemented |
+| Authentication | Incomplete | Core complete: password reset (needs SMTP in production) and Sign in with Google (needs an OAuth client); email verification for password sign-ups and MFA not implemented |
 | Authorization | Complete | Central ownership checks; IDOR suite |
 | AI integration | Incomplete | Hardened and mock-tested; not exercised live in Phase 6; checker generation missing |
 | Code execution | Complete | C++17 / Python 3, verdicts, limits |
@@ -93,8 +94,8 @@ the steps in *Before private production*. **Public multi-user use is blocked** (
 1. **Kernel-level isolation:** sandboxes share the host kernel (runc + seccomp). Install gVisor
    (`SANDBOX_RUNTIME=runsc`) or use microVMs on a dedicated host, then re-run the sandbox tests.
 2. **Worker holds the Docker socket** (root-equivalent). Acceptable only on a dedicated VM.
-3. **No account recovery or email verification**; abuse controls are limited to rate limits and
-   quotas.
+3. **No email verification for password sign-ups** (Google sign-ins are verified by Google); abuse
+   controls are limited to rate limits and quotas.
 4. **In-memory rate limits:** run a single API process or move the limiter to a shared store.
 
 ## Before private production

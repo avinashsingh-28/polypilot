@@ -47,8 +47,10 @@ Copy `deploy/.env.prod.example`. The required and important variables:
 | `CORS_ORIGINS=["https://your.domain"]` | Exact https origin(s); no wildcard |
 | `REGISTRATION_OPEN` | `false` for private deployments; create accounts with the CLI |
 | `METRICS_TOKEN` | Bearer token for `/metrics` (internal scraping only) |
-| `GEMINI_API_KEY`, `AI_MODEL`, `AI_MAX_CALLS_PER_USER_PER_DAY` | AI provider |
+| `AI_PROVIDER`, `AI_MODEL`, `GEMINI_API_KEY` / `AI_API_KEY`, `AI_MAX_CALLS_PER_USER_PER_DAY` | Optional server-default AI provider (shared by all users, daily limit applies). Leave empty to require users to bring their own key |
+| `AI_CREDENTIALS_KEY` | Fernet key encrypting users' own AI API keys (falls back to `POLYGON_CREDENTIALS_KEY`). Without one, production refuses to save keys |
 | `PUBLIC_APP_URL`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Forgot-password emails (any SMTP provider). Without SMTP, production cannot send reset links |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Optional Sign in with Google (see below). Leave both empty to hide the button |
 | `POLYGON_CREDENTIALS_KEY` | Fernet key for per-user Polygon credentials saved in the UI |
 | `POLYGON_API_KEY`, `POLYGON_API_SECRET`, `POLYGON_ENV_CREDENTIALS_EMAIL` | Optional shared env credentials, usable only by that one user |
 | `SANDBOX_MAX_CONCURRENT`, `MAX_*` | Execution limits (server maxima) |
@@ -76,6 +78,13 @@ before deploying it, and never run `alembic downgrade` in production without a f
 Optional gVisor (recommended): install `runsc` following the gVisor documentation, register it as a
 Docker runtime, then set `SANDBOX_RUNTIME=runsc` and run `docker compose … up -d worker`.
 Verify with `docker compose … exec worker python -m app.worker --check`.
+
+Sign in with Google (optional): in Google Cloud Console → *APIs & Services* → *OAuth consent screen*,
+configure an External app (scopes: `openid`, `email`, `profile`). Then *Credentials* → *Create
+credentials* → *OAuth client ID* → *Web application*, with Authorized redirect URI
+`https://your.domain/api/v1/auth/google/callback` (for local development also add
+`http://localhost:5173/api/v1/auth/google/callback`). Put the client ID and secret in
+`deploy/.env.prod` and restart the backend.
 
 TLS: put Caddy in front, e.g. a `Caddyfile` containing `your.domain { reverse_proxy 127.0.0.1:8080 }`.
 

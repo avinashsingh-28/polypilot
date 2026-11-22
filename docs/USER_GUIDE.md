@@ -1,9 +1,20 @@
 # PolyPilot user guide
 
 ## 0. Account
-Register, then sign in. Forgot your password? Click **Forgot password?** on the sign-in page. A reset
+Register, then sign in — or click **Continue with Google** (shown when the server has Google
+sign-in configured). If you first registered with a password and then use Google with the same
+email, the accounts are merged; if that email was never confirmed, the old password stops working
+and you can set a new one with **Forgot password?**. Forgot your password? Click **Forgot password?** on the sign-in page. A reset
 link is emailed to you; it works once and expires after 30 minutes. In local development without an
 email server, the link appears in the backend console. Resetting signs you out everywhere.
+
+## 0.1 Choose an AI provider
+Open **AI Providers**. Click **Add key** on any provider (Gemini, Claude, OpenAI, DeepSeek, Groq,
+Mistral, xAI, OpenRouter, Together, Fireworks, Cerebras), paste your API key (**Get a key** links to
+the provider's key page), pick a model, and **Save key**. The key is checked right away by listing
+the models it can use; pick one from the Model list if yours is not available. Your first saved
+provider becomes active; switch with **Use this**, or **Use server default** to go back to the key
+configured by the administrator. Keys are stored encrypted and never shown again.
 
 ## 1. Create a problem
 **Create Problem** → enter the title, idea, intended algorithm, constraints, input/output formats and
@@ -62,7 +73,7 @@ and never shown again. Then click **Test connection**, which only lists your pro
 ## 10. Synchronize and build
 In the workspace **Polygon** tab:
 1. **Connect existing** (retype the problem name to confirm) or **Create new**.
-2. **Preview** shows local items only, plus their Phase 4 verification status. Validators and
+2. **Preview** shows local items only, plus their verification status. Validators and
    checkers that are unverified or failed are blocked.
 3. **Dry run** reads Polygon and lists the exact create/update/conflict actions. Nothing is written.
 4. **Upload** writes those changes to your Polygon *working copy* only. Conflicting remote files are

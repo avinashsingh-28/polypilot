@@ -24,7 +24,7 @@ from app.services.generation.steps import (
     run_statement, run_reference_solution, run_brute_force,
     run_validator, run_generator, run_editorial,
 )
-from app.services.ai import get_ai_provider
+from app.services.ai import NO_AI, ai_available, resolve_provider
 
 router = APIRouter(prefix="/problems", tags=["generation"])
 logger = logging.getLogger(__name__)
@@ -94,14 +94,10 @@ async def start_generation(
     """Start the AI generation pipeline for a problem."""
     settings = get_settings()
 
-    # Guard: check API key is configured
-    if not getattr(settings, "GEMINI_API_KEY", ""):
-        raise HTTPException(
-            status_code=503,
-            detail="GEMINI_API_KEY is not configured. Add it to backend/.env to enable generation.",
-        )
-
     problem = _require_problem(db, problem_id)
+    # Guard: the owner needs a provider (own saved key, or the server's key)
+    if not ai_available(db, problem.owner_id, settings):
+        raise HTTPException(status_code=503, detail=NO_AI)
 
     # If there's already a running job, reject
     existing = _latest_job(db, problem_id)
@@ -177,8 +173,6 @@ async def regenerate_step(
 ):
     """Regenerate a single artifact step without re-running the full pipeline."""
     settings = get_settings()
-    if not getattr(settings, "GEMINI_API_KEY", ""):
-        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured.")
 
     if body.step not in REGENERATABLE_STEPS:
         raise HTTPException(
@@ -205,8 +199,8 @@ async def regenerate_step(
     from app.services.ai import TrackedProvider
     from app.services.ai.base import AIError
     try:
-        ai = TrackedProvider(get_ai_provider(settings), lambda: db, problem.owner_id, problem.id,
-                             f"regenerate:{body.step}", settings.AI_MAX_CALLS_PER_USER_PER_DAY)
+        inner, limit = resolve_provider(db, problem.owner_id, settings)
+        ai = TrackedProvider(inner, lambda: db, problem.owner_id, problem.id, f"regenerate:{body.step}", limit)
     except AIError as exc:
         raise HTTPException(status_code=503, detail=exc.message)
     step_map = {

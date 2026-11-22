@@ -23,11 +23,14 @@ export const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) 
   const [expired, setExpired] = useState(false);
   // A password-reset link opens the app with ?reset_token=…; read it once, then strip it from the
   // address bar so the secret does not stay in history or leak via the Referer header.
-  const [resetToken, setResetToken] = useState<string | null>(() => {
-    const t = new URLSearchParams(window.location.search).get('reset_token');
-    if (t) window.history.replaceState(null, '', window.location.pathname);
-    return t;
+  // Google sign-in errors come back as ?auth_error=<code>; read once and strip as well.
+  const [{ resetToken: initialReset, authError }] = useState(() => {
+    const q = new URLSearchParams(window.location.search);
+    const r = { resetToken: q.get('reset_token'), authError: q.get('auth_error') };
+    if (r.resetToken || r.authError) window.history.replaceState(null, '', window.location.pathname);
+    return r;
   });
+  const [resetToken, setResetToken] = useState<string | null>(initialReset);
 
   const check = useCallback(async () => {
     try {
@@ -54,7 +57,7 @@ export const AuthGate: React.FC<{ children: React.ReactNode }> = ({ children }) 
     return <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-secondary)' }} role="status">Checking session…</div>;
   }
   if (!user || resetToken) {
-    return <LoginPage expired={expired} resetToken={resetToken}
+    return <LoginPage expired={expired} resetToken={resetToken} authError={authError}
       onResetDone={() => { setResetToken(null); setUser(null); }}   // all sessions were revoked by the reset
       onSignedIn={(u) => { setUser(u); setExpired(false); }} />;
   }
